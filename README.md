@@ -1,0 +1,2 @@
+# stupiddb
+Ridiculously easy.
