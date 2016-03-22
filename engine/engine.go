@@ -112,7 +112,7 @@ func (db *Engine) Add(query *query.Query) error {
 		for scanner.Scan() {
 			fields := strings.Split(scanner.Text(), ";")
 			for i, hd := range headers {
-				if hd[0:2] == "U%" && query.D[hd] == fields[i] {
+				if hd[:2] == "U%" && query.D[hd[2:]] == fields[i] {
 					return DBError{"Unique row '" + hd + "' restriction violated."}
 				}
 			}
