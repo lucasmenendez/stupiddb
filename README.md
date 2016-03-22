@@ -23,8 +23,20 @@ Example:
 ##### ```func (database *Instance) database.Add(q *query.Query) error {}```
 The ```Query``` struct contains three attributes:
 * ```T```: Table refered name.
-* ```F```: Filters to applay to query results.
-* ```D```: Data provided to use them into query exec.
+* ```F```: Filters to applay to query results:
+```
+	filters := map[string]string {
+		"col1": "value1",
+		"col2": "value2",
+	}
+```
+* ```D```: Data provided to use them into query exec:
+```
+	data := map[string]string {
+		"col1": "value1",
+		"col2": "value2",
+	}
+```
 And ```Add``` functions insert query data into table provided.
 
 ##### ```func (database *Instance) database.Get(q *query.Query) ([]map[string]string, error) {}```
