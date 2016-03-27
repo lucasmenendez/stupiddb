@@ -3,44 +3,147 @@ Ridiculously easy.
 
 ## API
 
-##### ```func engine.CreateInstance(name string) error {}```
-Create a database instance with name provided.
+#### Query
+Used to make queries to database. Specifies referenced table, data use on query execution and filters to limit results.
 
-##### ```func engine.Instance(name string) (*Instance, error) {}```
-Initialize a database instance.
+###### Methods
+- `func Query() *query {}`
+Return new query pointer.
 
-##### ```func (database *Instance) database.CreateTable(name string, columns []string) error {}``` 
-Create table with name and columns provided. Columns can be UNIQUE.
-Example:
+- `func (q *query) Table(name string) *query {}`
+That assign database to query based on name.
+
+- `func (q *query) Data(data map[string]string) *query {}`
+Set key-value data relation to query.
+
+- `func (q *query) Filters(filters map[string]string) *query {}`
+Set key-value attributes to query filters.
+
+###### Example
+```	
+	d := map[string]string {
+		"column": "value",
+	}
+	f := map[string]string {
+		"column": "row value",
+	}
+	query := engine.Query().Table("example").Data(d).Filters(f)
+
 ```
-	columns := []string {
+
+#### Engine
+Contains database information and is used to make queries.
+
+###### Methods & examples
+- `func CreateInstance(database string) error {}`
+Create files on filesystem used as database.
+```
+	if err := engine.CreateInstance("demo_db"); err != nil {
+		fmt.Println(err)
+		return
+	}
+```
+
+- `func Instance(schema string) (*Engine, error) {}`
+Return instance pointer with its attributes.
+```
+	db, err := engine.Instance("demo_db")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+```
+
+- `func (db *engine) CreateTable(table string, fields []string) error {}`
+Create table with name and fields provided. Also you can set a column as unique with mask `engine.Unique(column string)` when set column name on fields string slice daclaration.
+```
+	fields := []string{
 		engine.Unique("col1"),
-		"col2",
+		engine.Unique("col2"),
 		"col3",
 	}
-```
-
-##### ```func (database *Instance) database.Add(q *query.Query) error {}```
-The ```Query``` struct contains three attributes:
-* ```T```: Table refered name.
-* ```F```: Filters to applay to query results:
-```
-	filters := map[string]string {
-		"col1": "value1",
-		"col2": "value2",
+	if err := db.CreateTable("demo_table", fields); err != nil {
+		fmt.Println(err)
+		return
 	}
 ```
-* ```D```: Data provided to use them into query exec:
+
+- `func (db *engine) Add(q *query) error {}`
+Add new row on table specified on query with its data.
 ```
-	data := map[string]string {
-		"col1": "value1",
-		"col2": "value2",
+	data := map[string]string{
+		"col1": "row1",
+		"col2": "row1",
+		"col3": "row1",
+	}
+	query := engine.Query().Table("demo_table").Data(data1)
+	if err := db.Add(query); err != nil {
+		fmt.Println(err)
+		return
 	}
 ```
-And ```Add``` functions insert query data into table provided.
 
-##### ```func (database *Instance) database.Get(q *query.Query) ([]map[string]string, error) {}```
-Get all itemss stored on table provided, applying the filters.
+- `func (db *engine) Edit(q *query) error {}`
+Replace data from query on row specified by query table and filters.
+```
+	data := map[string]string{
+		"col3": "newrow1",
+	}
 
-##### ```func (database *Instance) database.GetOne(q *query.Query) (map[string]string, error) {}```
-Return the first item stored on table provided, applying the filters.
+	filters := map[string]string{
+		"col1": "row1",
+		"col2": "row2",
+	}
+	query := engine.Query().Table("demo_table").Filters(filters).Data(data)
+	if err := db.Edit(query); err != nil {
+		fmt.Println(err)
+		return
+	}
+```
+
+- `func (db *engine) Delete(q *query) error {}`
+Delete row based on query table and filters.
+```
+	filters := map[string]string{
+		"col1": "row1",
+	}
+
+	query := engine.Query().Table("demo_table").Filters(filters)
+	if err := db.Delete(query); err != nil {
+		fmt.Println(err)
+	}
+```
+
+- `func (db *engine) Get(q *query) ([]map[string]string, error) {}`
+Return all ocurrences on database based on query table and filters.
+```
+	filters := map[string]string{
+		"col1": "row1",
+	}
+	query := engine.Query().Table("demo_table").Filters(filters)
+	
+	res, err := db.Get(query)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(res)
+```
+
+- `func (db *engine) GetOne(q *query) (map[string]string, error) {}`
+Return first ocurrence on database based on query table and filters.
+``` 
+	filters := map[string]string{
+		"col1": "row1",
+	}
+	query := engine.Query().Table("demo_table").Filters(filters)
+	
+	res, err := db.GetOne(query)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(res)
+```

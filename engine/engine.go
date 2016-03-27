@@ -3,15 +3,14 @@ package engine
 import (
 	"bufio"
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"strings"
-	"stupiddb/query"
 )
 
+//Custom error
 type DBError struct {
 	Message string
 }
@@ -20,12 +19,40 @@ func (err DBError) Error() string {
 	return fmt.Sprintf("%v", err.Message)
 }
 
-type Engine struct {
+//Query struct
+type query struct {
+	t string
+	f map[string]string
+	d map[string]string
+}
+
+func Query() *query {
+	return &query{}
+}
+
+func (q *query) Table(name string) *query {
+	q.t = name
+	return q
+}
+
+func (q *query) Data(data map[string]string) *query {
+	q.d = data
+	return q
+}
+
+func (q *query) Filters(filters map[string]string) *query {
+	q.f = filters
+	return q
+}
+
+//Engine struct
+type engine struct {
 	database []os.FileInfo
 	location string
 }
 
-func CreateInstance(name string) error {
+//Create database file on filesystem
+func CreateInstance(database string) error {
 	user, err := user.Current()
 	if err != nil {
 		return err
@@ -38,8 +65,6 @@ func CreateInstance(name string) error {
 		}
 	}
 
-	database := base64.StdEncoding.EncodeToString([]byte(name))
-
 	if _, err = os.Stat(path + database); err != nil {
 		if err = os.Mkdir(path+database, os.ModePerm); err != nil {
 			return err
@@ -50,7 +75,8 @@ func CreateInstance(name string) error {
 	}
 }
 
-func Instance(schema string) (*Engine, error) {
+//Return instance with its attributes
+func Instance(schema string) (*engine, error) {
 	user, err := user.Current()
 	if err != nil {
 		return nil, err
@@ -58,25 +84,22 @@ func Instance(schema string) (*Engine, error) {
 
 	path := user.HomeDir + "/.godb/"
 
-	database_name := base64.StdEncoding.EncodeToString([]byte(schema))
-
-	if _, err := os.Stat(path + database_name); err != nil {
+	if _, err := os.Stat(path + schema); err != nil {
 		return nil, err
 	}
 
-	location := path + database_name
+	location := path + schema
 
 	var database []os.FileInfo
 	if database, err = ioutil.ReadDir(location); err != nil {
 		return nil, err
 	}
 
-	return &Engine{database, location + "/"}, nil
+	return &engine{database, location + "/"}, nil
 }
 
-func (db *Engine) CreateTable(name string, fields []string) error {
-	table := base64.StdEncoding.EncodeToString([]byte(name))
-
+//Create table
+func (db *engine) CreateTable(table string, fields []string) error {
 	fd, err := os.Create(db.location + table)
 	if err != nil {
 		return err
@@ -87,14 +110,14 @@ func (db *Engine) CreateTable(name string, fields []string) error {
 	return err
 }
 
+//String mask to set unique restriction to column name
 func Unique(data string) string {
 	return "U%" + data
 }
 
-func (db *Engine) Add(query *query.Query) error {
-	table := base64.StdEncoding.EncodeToString([]byte(query.T))
-
-	fd, err := os.OpenFile(db.location+table, os.O_RDWR|os.O_APPEND, os.ModePerm)
+//Add row with query information
+func (db *engine) Add(q *query) error {
+	fd, err := os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return DBError{"Table not found."}
 	}
@@ -109,11 +132,11 @@ func (db *Engine) Add(query *query.Query) error {
 
 	defer fd.Close()
 
-	if len(headers) == len(query.D) {
+	if len(headers) == len(q.d) {
 		for scanner.Scan() {
 			fields := strings.Split(scanner.Text(), "<;;>")
 			for i, hd := range headers {
-				if hd[:2] == "U%" && query.D[hd[2:]] == fields[i] {
+				if hd[:2] == "U%" && q.d[hd[2:]] == fields[i] {
 					return DBError{"Unique row '" + hd + "' restriction violated."}
 				}
 			}
@@ -122,7 +145,7 @@ func (db *Engine) Add(query *query.Query) error {
 		var data string
 		for _, hd := range headers {
 			isField := false
-			for column, value := range query.D {
+			for column, value := range q.d {
 				if hd[:2] == "U%" {
 					hd = hd[2:]
 				}
@@ -146,10 +169,9 @@ func (db *Engine) Add(query *query.Query) error {
 	return DBError{"Attribute length mismatch."}
 }
 
-func (db *Engine) Edit(q *query.Query) error {
-	table := base64.StdEncoding.EncodeToString([]byte(q.T))
-
-	fd, err := os.OpenFile(db.location+table, os.O_RDWR|os.O_APPEND, os.ModePerm)
+//Edit, if exists, the row specified on query with its replacement
+func (db *engine) Edit(q *query) error {
+	fd, err := os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return DBError{"Table not found."}
 	}
@@ -170,7 +192,7 @@ func (db *Engine) Edit(q *query.Query) error {
 			hd = hd[2:]
 		}
 
-		for filter, value := range q.F {
+		for filter, value := range q.f {
 			if hd == filter {
 				filters[i] = value
 			}
@@ -194,7 +216,7 @@ func (db *Engine) Edit(q *query.Query) error {
 
 	old := strings.Join(content, "<;;>")
 	for i, hd := range headers {
-		for key, value := range q.D {
+		for key, value := range q.d {
 			if hd == key {
 				content[i] = value
 			}
@@ -204,23 +226,90 @@ func (db *Engine) Edit(q *query.Query) error {
 	new := []byte(strings.Join(content, "<;;>"))
 
 	var data []byte
-	if data, err = ioutil.ReadFile(db.location + table); err != nil {
+	if data, err = ioutil.ReadFile(db.location + q.t); err != nil {
 		return err
 	}
 
 	data = bytes.Replace(data, []byte(old), new, -1)
 
-	if err = ioutil.WriteFile(db.location+table, data, os.ModePerm); err != nil {
+	if err = ioutil.WriteFile(db.location+q.t, data, os.ModePerm); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (db *Engine) Get(q *query.Query) ([]map[string]string, error) {
-	table := base64.StdEncoding.EncodeToString([]byte(q.T))
+//Delete a row according to query data
+func (db *engine) Delete(q *query) error {
+	fd, err := os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return DBError{"Table not found."}
+	}
 
-	fd, err := os.OpenFile(db.location+table, os.O_RDONLY, os.ModePerm)
+	scanner := bufio.NewScanner(fd)
+	if !scanner.Scan() {
+		return DBError{"Table not found."}
+	}
+
+	header := strings.Split(scanner.Text(), "<;;>")
+	headers := header[:len(header)-1]
+
+	defer fd.Close()
+
+	filters := make(map[int]string)
+	for i, hd := range headers {
+		if hd[:2] == "U%" {
+			hd = hd[2:]
+		}
+
+		for filter, value := range q.f {
+			if hd == filter {
+				filters[i] = value
+			}
+		}
+	}
+
+	var content []string
+	for scanner.Scan() {
+		content = strings.Split(scanner.Text(), "<;;>")
+		match := true
+		for pos, value := range filters {
+			match = value == content[pos]
+			if !match {
+				break
+			}
+		}
+		if match {
+			break
+		}
+	}
+
+	old := strings.Join(content, "<;;>") + "\n"
+	for i, hd := range headers {
+		for key, value := range q.d {
+			if hd == key {
+				content[i] = value
+			}
+		}
+	}
+
+	var data []byte
+	if data, err = ioutil.ReadFile(db.location + q.t); err != nil {
+		return err
+	}
+
+	data = bytes.Replace(data, []byte(old), []byte(""), -1)
+
+	if err = ioutil.WriteFile(db.location+q.t, data, os.ModePerm); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//Get all rows requested on query data
+func (db *engine) Get(q *query) ([]map[string]string, error) {
+	fd, err := os.OpenFile(db.location+q.t, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return nil, DBError{"Table not found."}
 	}
@@ -241,7 +330,7 @@ func (db *Engine) Get(q *query.Query) ([]map[string]string, error) {
 			hd = hd[2:]
 		}
 
-		for filter, value := range q.F {
+		for filter, value := range q.f {
 			if hd == filter {
 				filters[i] = value
 			}
@@ -278,10 +367,9 @@ func (db *Engine) Get(q *query.Query) ([]map[string]string, error) {
 
 }
 
-func (db *Engine) GetOne(q *query.Query) (map[string]string, error) {
-	table := base64.StdEncoding.EncodeToString([]byte(q.T))
-
-	fd, err := os.OpenFile(db.location+table, os.O_RDONLY, os.ModePerm)
+//Get the first row with information of query data
+func (db *engine) GetOne(q *query) (map[string]string, error) {
+	fd, err := os.OpenFile(db.location+q.t, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return nil, DBError{"Table not found."}
 	}
@@ -302,7 +390,7 @@ func (db *Engine) GetOne(q *query.Query) (map[string]string, error) {
 			hd = hd[2:]
 		}
 
-		for filter, value := range q.F {
+		for filter, value := range q.f {
 			if hd == filter {
 				filters[i] = value
 			}
