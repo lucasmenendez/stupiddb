@@ -1,6 +1,9 @@
 # stupiddb
 Ridiculously easy.
 
+## Setup enviroment
+Only you need is create folder `.stupiddb` on your HOME directory.
+
 ## API
 
 #### Query
@@ -27,7 +30,7 @@ Set key-value attributes to query filters.
 	f := map[string]string {
 		"column": "row value",
 	}
-	query := engine.Query().Table("example").Data(d).Filters(f)
+	query := stupiddb.Query().Table("example").Data(d).Filters(f)
 
 ```
 
@@ -38,16 +41,16 @@ Contains database information and is used to make queries.
 - `func CreateInstance(database string) error {}`
 Create files on filesystem used as database.
 ```
-	if err := engine.CreateInstance("demo_db"); err != nil {
+	if err := stupiddb.CreateInstance("demo_db"); err != nil {
 		fmt.Println(err)
 		return
 	}
 ```
 
-- `func Instance(schema string) (*Engine, error) {}`
+- `func Instance(schema string) (*engine, error) {}`
 Return instance pointer with its attributes.
 ```
-	db, err := engine.Instance("demo_db")
+	db, err := stupiddb.Instance("demo_db")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -55,11 +58,11 @@ Return instance pointer with its attributes.
 ```
 
 - `func (db *engine) CreateTable(table string, fields []string) error {}`
-Create table with name and fields provided. Also you can set a column as unique with mask `engine.Unique(column string)` when set column name on fields string slice daclaration.
+Create table with name and fields provided. Also you can set a column as unique with mask `stupiddb.Unique(column string)` when set column name on fields string slice daclaration.
 ```
 	fields := []string{
-		engine.Unique("col1"),
-		engine.Unique("col2"),
+		stupiddb.Unique("col1"),
+		stupiddb.Unique("col2"),
 		"col3",
 	}
 	if err := db.CreateTable("demo_table", fields); err != nil {
@@ -76,7 +79,7 @@ Add new row on table specified on query with its data.
 		"col2": "row1",
 		"col3": "row1",
 	}
-	query := engine.Query().Table("demo_table").Data(data1)
+	query := stupiddb.Query().Table("demo_table").Data(data1)
 	if err := db.Add(query); err != nil {
 		fmt.Println(err)
 		return
@@ -94,7 +97,7 @@ Replace data from query on row specified by query table and filters.
 		"col1": "row1",
 		"col2": "row2",
 	}
-	query := engine.Query().Table("demo_table").Filters(filters).Data(data)
+	query := stupiddb.Query().Table("demo_table").Filters(filters).Data(data)
 	if err := db.Edit(query); err != nil {
 		fmt.Println(err)
 		return
@@ -108,7 +111,7 @@ Delete row based on query table and filters.
 		"col1": "row1",
 	}
 
-	query := engine.Query().Table("demo_table").Filters(filters)
+	query := stupiddb.Query().Table("demo_table").Filters(filters)
 	if err := db.Delete(query); err != nil {
 		fmt.Println(err)
 	}
@@ -120,7 +123,7 @@ Return all ocurrences on database based on query table and filters.
 	filters := map[string]string{
 		"col1": "row1",
 	}
-	query := engine.Query().Table("demo_table").Filters(filters)
+	query := stupiddb.Query().Table("demo_table").Filters(filters)
 	
 	res, err := db.Get(query)
 	if err != nil {
@@ -137,7 +140,7 @@ Return first ocurrence on database based on query table and filters.
 	filters := map[string]string{
 		"col1": "row1",
 	}
-	query := engine.Query().Table("demo_table").Filters(filters)
+	query := stupiddb.Query().Table("demo_table").Filters(filters)
 	
 	res, err := db.GetOne(query)
 	if err != nil {

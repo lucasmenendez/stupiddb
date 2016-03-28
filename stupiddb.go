@@ -1,10 +1,9 @@
-package engine
+package stupiddb
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"strings"
@@ -55,44 +54,44 @@ type engine struct {
 func CreateInstance(database string) error {
 	user, err := user.Current()
 	if err != nil {
-		return err
+		return DBError{"Error getting username."}
 	}
 
-	path := user.HomeDir + "/.godb/"
+	path := user.HomeDir + "/.stupiddb/"
 	if _, err = os.Stat(path); err != nil {
 		if err = os.Mkdir(path, os.ModePerm); err != nil {
-			return err
+			return DBError{"Error overwritting database."}
 		}
 	}
 
 	if _, err = os.Stat(path + database); err != nil {
 		if err = os.Mkdir(path+database, os.ModePerm); err != nil {
-			return err
+			return DBError{"Error creating database."}
 		}
 		return nil
-	} else {
-		return err
 	}
+	return nil
 }
 
 //Return instance with its attributes
 func Instance(schema string) (*engine, error) {
 	user, err := user.Current()
 	if err != nil {
-		return nil, err
+		return nil, DBError{"Error getting username."}
 	}
 
-	path := user.HomeDir + "/.godb/"
+	location := user.HomeDir + "/.stupiddb/" + schema
 
-	if _, err := os.Stat(path + schema); err != nil {
-		return nil, err
+	var fd *os.File
+	if fd, err = os.Open(location); err != nil {
+		return nil, DBError{"Error opening database."}
 	}
 
-	location := path + schema
+	defer fd.Close()
 
 	var database []os.FileInfo
-	if database, err = ioutil.ReadDir(location); err != nil {
-		return nil, err
+	if database, err = fd.Readdir(-1); err != nil {
+		return nil, DBError{"Error reading table headers."}
 	}
 
 	return &engine{database, location + "/"}, nil
@@ -102,12 +101,14 @@ func Instance(schema string) (*engine, error) {
 func (db *engine) CreateTable(table string, fields []string) error {
 	fd, err := os.Create(db.location + table)
 	if err != nil {
-		return err
+		return DBError{"Error creating database file."}
 	}
 	defer fd.Close()
 
-	_, err = fd.Write([]byte(strings.Join(fields, "<;;>") + "<;;>\n"))
-	return err
+	if _, err = fd.Write([]byte(strings.Join(fields, "<;;>") + "<;;>\n")); err != nil {
+		return DBError{"Error creating database struct."}
+	}
+	return nil
 }
 
 //String mask to set unique restriction to column name
@@ -162,8 +163,10 @@ func (db *engine) Add(q *query) error {
 			}
 
 		}
-		_, err = fd.Write([]byte(data + "\n"))
-		return err
+		if _, err = fd.Write([]byte(data + "\n")); err != nil {
+			return DBError{"Error writting table."}
+		}
+		return nil
 	}
 
 	return DBError{"Attribute length mismatch."}
@@ -184,16 +187,15 @@ func (db *engine) Edit(q *query) error {
 	header := strings.Split(scanner.Text(), "<;;>")
 	headers := header[:len(header)-1]
 
-	defer fd.Close()
-
 	filters := make(map[int]string)
 	for i, hd := range headers {
-		if hd[:2] == "U%" {
-			hd = hd[2:]
+		header := hd
+		if header[:2] == "U%" {
+			header = header[2:]
 		}
 
 		for filter, value := range q.f {
-			if hd == filter {
+			if header == filter {
 				filters[i] = value
 			}
 		}
@@ -214,9 +216,14 @@ func (db *engine) Edit(q *query) error {
 		}
 	}
 
+	fd.Close()
+
 	old := strings.Join(content, "<;;>")
 	for i, hd := range headers {
 		for key, value := range q.d {
+			if hd[:2] == "U%" && hd[2:] == key {
+				return DBError{"Unique column cannot be modificated."}
+			}
 			if hd == key {
 				content[i] = value
 			}
@@ -225,17 +232,27 @@ func (db *engine) Edit(q *query) error {
 
 	new := []byte(strings.Join(content, "<;;>"))
 
-	var data []byte
-	if data, err = ioutil.ReadFile(db.location + q.t); err != nil {
-		return err
+	fd, err = os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return DBError{"Error opening table."}
+	}
+
+	fileinfo, _ := fd.Stat()
+	data := make([]byte, fileinfo.Size())
+	if _, err = fd.Read(data); err != nil {
+		return DBError{"Error reading table."}
 	}
 
 	data = bytes.Replace(data, []byte(old), new, -1)
-
-	if err = ioutil.WriteFile(db.location+q.t, data, os.ModePerm); err != nil {
-		return err
+	if err = fd.Truncate(0); err != nil {
+		return DBError{"Error truncating table."}
 	}
 
+	defer fd.Close()
+
+	if _, err = fd.Write(data); err != nil {
+		return DBError{"Error writting table."}
+	}
 	return nil
 }
 
@@ -254,8 +271,6 @@ func (db *engine) Delete(q *query) error {
 	header := strings.Split(scanner.Text(), "<;;>")
 	headers := header[:len(header)-1]
 
-	defer fd.Close()
-
 	filters := make(map[int]string)
 	for i, hd := range headers {
 		if hd[:2] == "U%" {
@@ -284,6 +299,8 @@ func (db *engine) Delete(q *query) error {
 		}
 	}
 
+	fd.Close()
+
 	old := strings.Join(content, "<;;>") + "\n"
 	for i, hd := range headers {
 		for key, value := range q.d {
@@ -293,17 +310,27 @@ func (db *engine) Delete(q *query) error {
 		}
 	}
 
-	var data []byte
-	if data, err = ioutil.ReadFile(db.location + q.t); err != nil {
-		return err
+	fd, err = os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return DBError{"Error opening table."}
+	}
+
+	fileinfo, _ := fd.Stat()
+	data := make([]byte, fileinfo.Size())
+	if _, err = fd.Read(data); err != nil {
+		return DBError{"Error reading table."}
 	}
 
 	data = bytes.Replace(data, []byte(old), []byte(""), -1)
-
-	if err = ioutil.WriteFile(db.location+q.t, data, os.ModePerm); err != nil {
-		return err
+	if err = fd.Truncate(0); err != nil {
+		return DBError{"Error truncating table."}
 	}
 
+	defer fd.Close()
+
+	if _, err = fd.Write(data); err != nil {
+		return DBError{"Error writting table."}
+	}
 	return nil
 }
 
