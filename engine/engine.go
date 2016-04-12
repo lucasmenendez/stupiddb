@@ -1,4 +1,4 @@
-package stupiddb
+package engine
 
 import (
 	"bufio"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-//ERROR
+//Error
 type DBError struct {
 	Message string
 }
@@ -19,17 +19,19 @@ func (err DBError) Error() string {
 	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
-//QUERY
+//STRUCTS
+
+//Query
 type query struct {
 	t string
 	f map[string]string
 	d map[string]string
 }
 
-//engine
-type engine struct {
-	database []os.FileInfo
-	location string
+//Engine
+type Engine struct {
+	Database []os.FileInfo
+	Location string
 }
 
 //FUNCTIONS
@@ -81,13 +83,13 @@ func CreateInstance(database string) error {
 }
 
 //Return instance with its attributes
-func Instance(schema string) (*engine, error) {
+func Instance(schema string) (*Engine, error) {
 	user, err := user.Current()
 	if err != nil {
 		return nil, DBError{"Error getting username."}
 	}
 
-	location := user.HomeDir + "/.stupiddb/" + schema
+	location := user.HomeDir + "/." + schema
 
 	var fd *os.File
 	if fd, err = os.Open(location); err != nil {
@@ -101,89 +103,12 @@ func Instance(schema string) (*engine, error) {
 		return nil, DBError{"Error reading table headers."}
 	}
 
-	return &engine{database, location + "/"}, nil
-}
-
-//DATATYPES
-type DataType struct {
-	alias     string
-	constrain string
-	size      int
-}
-
-func Int(constrains ...string) DataType {
-	var constrain string
-	if len(constrains) > 0 {
-		if wrongConstrain(constrains[0]) {
-			fmt.Println("Wrong constrain.")
-			return DataType{"", "", 0}
-		}
-		constrain = constrains[0]
-	}
-	return DataType{"int", constrain, 4}
-}
-
-func Float(constrains ...string) DataType {
-	var constrain string
-	if len(constrains) > 0 {
-		if wrongConstrain(constrains[0]) {
-			fmt.Println("Wrong constrain.")
-			return DataType{"", "", 0}
-		}
-		constrain = constrains[0]
-	}
-	return DataType{"float", constrain, 20}
-}
-
-func Bool() DataType {
-	return DataType{"bool", "", 1}
-}
-
-func String(size int, constrains ...string) DataType {
-	var constrain string
-	if len(constrains) > 0 {
-		if wrongConstrain(constrains[0]) {
-			fmt.Println("Wrong constrain.")
-			return DataType{"", "", 0}
-		}
-		constrain = constrains[0]
-	}
-	return DataType{"string", constrain, size}
-}
-
-//ENCODERS, DECODERS & CHECKERS
-func wrongConstrain(constrain string) bool {
-	return constrain != "primary" && constrain != "unique"
-}
-
-//OPERATORS
-
-//Create table
-func (db *engine) CreateTable(table string, fields map[string]DataType) error {
-	fmt.Println(db.location + table)
-	fd, err := os.Create(db.location + table)
-	if err != nil {
-		return DBError{"Error creating database file."}
-	}
-	defer fd.Close()
-
-	var header string
-	var line_length int
-	for column, datatype := range fields {
-		header += fmt.Sprintf("%s(%d)%s;", datatype.alias, datatype.size, column)
-		line_length += datatype.size
-	}
-	header = fmt.Sprintf("%d;%d\n%s", len(header), line_length, header)
-
-	if _, err = fd.Write([]byte(header)); err != nil {
-		return DBError{"Error creating database struct."}
-	}
-	return nil
+	return &Engine{database, location + "/"}, nil
 }
 
 //Add row with query information
-func (db *engine) Add(q *query) error {
-	fd, err := os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+func (db *Engine) Add(q *query) error {
+	fd, err := os.OpenFile(db.Location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return DBError{"Table not found."}
 	}
@@ -238,8 +163,8 @@ func (db *engine) Add(q *query) error {
 }
 
 //Edit, if exists, the row specified on query with its replacement
-func (db *engine) Edit(q *query) error {
-	fd, err := os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+func (db *Engine) Edit(q *query) error {
+	fd, err := os.OpenFile(db.Location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return DBError{"Table not found."}
 	}
@@ -297,7 +222,7 @@ func (db *engine) Edit(q *query) error {
 
 	new := []byte(strings.Join(content, "<;;>"))
 
-	fd, err = os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	fd, err = os.OpenFile(db.Location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return DBError{"Error opening table."}
 	}
@@ -322,8 +247,8 @@ func (db *engine) Edit(q *query) error {
 }
 
 //Delete a row according to query data
-func (db *engine) Delete(q *query) error {
-	fd, err := os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+func (db *Engine) Delete(q *query) error {
+	fd, err := os.OpenFile(db.Location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return DBError{"Table not found."}
 	}
@@ -375,7 +300,7 @@ func (db *engine) Delete(q *query) error {
 		}
 	}
 
-	fd, err = os.OpenFile(db.location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	fd, err = os.OpenFile(db.Location+q.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return DBError{"Error opening table."}
 	}
@@ -400,8 +325,8 @@ func (db *engine) Delete(q *query) error {
 }
 
 //Get all rows requested on query data
-func (db *engine) Get(q *query) ([]map[string]string, error) {
-	fd, err := os.OpenFile(db.location+q.t, os.O_RDONLY, os.ModePerm)
+func (db *Engine) Get(q *query) ([]map[string]string, error) {
+	fd, err := os.OpenFile(db.Location+q.t, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return nil, DBError{"Table not found."}
 	}
@@ -460,8 +385,8 @@ func (db *engine) Get(q *query) ([]map[string]string, error) {
 }
 
 //Get the first row with information of query data
-func (db *engine) GetOne(q *query) (map[string]string, error) {
-	fd, err := os.OpenFile(db.location+q.t, os.O_RDONLY, os.ModePerm)
+func (db *Engine) GetOne(q *query) (map[string]string, error) {
+	fd, err := os.OpenFile(db.Location+q.t, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return nil, DBError{"Table not found."}
 	}
