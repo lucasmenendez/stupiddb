@@ -1,26 +1,26 @@
 package query
 
 type Query struct {
-	t string
-	f map[string]string
-	d map[string]string
+	Table string
+	Filters map[string]string
+	Data map[string]string
 }
 
 func NewQuery() *Query {
 	return &Query{}
 }
 
-func (q *Query) Table(name string) *Query {
-	q.t = name
+func (q *Query) SetTable(name string) *Query {
+	q.Table = name
 	return q
 }
 
-func (q *Query) Data(data map[string]string) *Query {
-	q.d = data
+func (q *Query) SetFilters(filters map[string]string) *Query {
+	q.Filters = filters
 	return q
 }
 
-func (q *Query) Filters(filters map[string]string) *Query {
-	q.f = filters
+func (q *Query) SetData(data map[string]string) *Query {
+	q.Data = data
 	return q
 }

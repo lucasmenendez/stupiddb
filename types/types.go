@@ -4,11 +4,11 @@ import (
 	"fmt"
 )
 
-
 type Type struct {
-	Alias     string
-	Constrain string
-	Size      int
+	Alias		string
+	Constrain	string
+	Size		int
+	Content		interface{}
 }
 
 func Int(constrains ...string) Type {
@@ -16,11 +16,11 @@ func Int(constrains ...string) Type {
 	if len(constrains) > 0 {
 		if wrongConstrain(constrains[0]) {
 			fmt.Println("Wrong constrain.")
-			return Type{"", "", 0}
+			return Type{"", "", 0, nil}
 		}
 		constrain = constrains[0]
 	}
-	return Type{"int", constrain, 4}
+	return Type{"int", constrain, 4, nil}
 }
 
 func Float(constrains ...string) Type {
@@ -28,15 +28,15 @@ func Float(constrains ...string) Type {
 	if len(constrains) > 0 {
 		if wrongConstrain(constrains[0]) {
 			fmt.Println("Wrong constrain.")
-			return Type{"", "", 0}
+			return Type{"", "", 0, nil}
 		}
 		constrain = constrains[0]
 	}
-	return Type{"float", constrain, 20}
+	return Type{"float", constrain, 20, nil}
 }
 
 func Bool() Type {
-	return Type{"bool", "", 1}
+	return Type{"bool", "", 1, nil}
 }
 
 func String(size int, constrains ...string) Type {
@@ -44,11 +44,11 @@ func String(size int, constrains ...string) Type {
 	if len(constrains) > 0 {
 		if wrongConstrain(constrains[0]) {
 			fmt.Println("Wrong constrain.")
-			return Type{"", "", 0}
+			return Type{"", "", 0, nil}
 		}
 		constrain = constrains[0]
 	}
-	return Type{"string", constrain, size}
+	return Type{"string", constrain, size, nil}
 }
 
 func wrongConstrain(constrain string) bool {

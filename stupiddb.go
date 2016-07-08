@@ -1,15 +1,15 @@
 package stupiddb
 
 import (
-	//"bufio"
+	"bufio"
 	//"bytes"
 	"fmt"
 	"os"
 	"os/user"
-	//"strings"
-
+	"regexp"
+	"strconv"
 	//"stupiddb/query"
-	"stupiddb/types"
+	//"stupiddb/types"
 )
 
 type DBError struct {
@@ -20,10 +20,23 @@ func (err DBError) Error() string {
 	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
+type Type struct {
+	Alias		string
+	Constrain	string
+	Size		int
+	Content		interface{}
+}
+
+type Query struct {
+	Table string
+	Filters map[string]string
+	Data map[string]string
+}
 
 type engine struct {
 	database []os.FileInfo
 	location string
+	header_rgx *regexp.Regexp
 }
 
 func CreateInstance(database string) error {
@@ -68,12 +81,11 @@ func Instance(schema string) (*engine, error) {
 		return nil, DBError{"Error reading table headers."}
 	}
 
-	return &engine{database, location + "/"}, nil
+	rgx := regexp.MustCompile(`(int|float|string|bool)\(([0-9]*)\)([A-Za-z]*)`)
+	return &engine{database, location + "/", rgx}, nil
 }
 
-
-func (db *engine) CreateTable(table string, fields map[string]types.Type) error {
-	fmt.Println(db.location + table)
+func (db *engine) CreateTable(table string, fields map[string]Type) error {
 	fd, err := os.Create(db.location + table)
 	if err != nil {
 		return DBError{"Error creating database file."}
@@ -94,8 +106,37 @@ func (db *engine) CreateTable(table string, fields map[string]types.Type) error 
 	return nil
 }
 
-//func (db *engine) Add(query *query.Query) error {
-//	fd, err := os.OpenFile(db.location+query.t, os.O_RDWR|os.O_APPEND, os.ModePerm)
+func (db *engine) GetHeader(table string) (map[string]Type, error) {
+	var result map[string]Type = make(map[string]Type)
+
+	fd, err := os.OpenFile(db.location + table, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return result, DBError{"Table not found."}
+	}
+
+	scanner := bufio.NewScanner(fd)
+	if !scanner.Scan() {
+		return result, DBError{"Table not found."}
+	}
+	defer fd.Close()
+
+	_ = scanner.Scan()
+	var header_line string = scanner.Text()
+	var types [][]string = db.header_rgx.FindAllStringSubmatch(header_line, -1)
+
+	for _, column := range types {
+		var size int
+		if size, err = strconv.Atoi(column[2]); err != nil {
+			err = DBError{"Table header bad formated."}
+		}
+		result[column[3]] = Type{column[1], "", size, nil}
+	}
+
+	return result, err
+}
+
+//func (db *engine) Add(query *Query) error {
+//	fd, err := os.OpenFile(db.location+query.Table, os.O_RDWR|os.O_APPEND, os.ModePerm)
 //	if err != nil {
 //		return DBError{"Table not found."}
 //	}
@@ -147,6 +188,7 @@ func (db *engine) CreateTable(table string, fields map[string]types.Type) error 
 //	}
 //
 //	return DBError{"Attribute length mismatch."}
+//	return nil
 //}
 //
 //func (db *engine) Edit(q *query.Query) error {
