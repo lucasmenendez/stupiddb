@@ -4,6 +4,14 @@ import (
 	"fmt"
 )
 
+type DBError struct {
+	Message string
+}
+
+func (err DBError) Error() string {
+	return fmt.Sprintf("DBError: %v", err.Message)
+}
+
 type Type struct {
 	Alias		string
 	Constrain	string
@@ -15,8 +23,8 @@ func Int(constrains ...string) Type {
 	var constrain string
 	if len(constrains) > 0 {
 		if wrongConstrain(constrains[0]) {
-			fmt.Println("Wrong constrain.")
-			return Type{"", "", 0, nil}
+			fmt.Println(DBError{"Wrong constrain."})
+			return Type{}
 		}
 		constrain = constrains[0]
 	}
@@ -27,8 +35,8 @@ func Float(constrains ...string) Type {
 	var constrain string
 	if len(constrains) > 0 {
 		if wrongConstrain(constrains[0]) {
-			fmt.Println("Wrong constrain.")
-			return Type{"", "", 0, nil}
+			fmt.Println(DBError{"Wrong constrain."})
+			return Type{}
 		}
 		constrain = constrains[0]
 	}
@@ -43,8 +51,8 @@ func String(size int, constrains ...string) Type {
 	var constrain string
 	if len(constrains) > 0 {
 		if wrongConstrain(constrains[0]) {
-			fmt.Println("Wrong constrain.")
-			return Type{"", "", 0, nil}
+			fmt.Println(DBError{"Wrong constrain."})
+			return Type{}
 		}
 		constrain = constrains[0]
 	}
