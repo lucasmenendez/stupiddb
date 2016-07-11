@@ -101,19 +101,12 @@ func (db *Engine) Remove() error {
 
 
 func (db *Engine) UseTable(table string) {
-	fd, err := os.OpenFile(db.Location + table, os.O_RDWR|os.O_APPEND, os.ModePerm)
-	if err != nil {
-		fmt.Println(DBError{"Table not found."})
-		return
-	}
-
-	db.Table, err = tables.Use(table, db.Location, fd, db.SizesRgx, db.HeaderRgx)
-	if err != nil {
+	var err error
+	if db.Table, err = tables.Use(table, db.Location, db.SizesRgx, db.HeaderRgx); err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	fmt.Println("%#v", db.Table)
 	return
 }
 

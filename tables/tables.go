@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"regexp"
 	"strconv"
+	"io/ioutil"
 	"stupiddb/types"
 )
 
@@ -42,15 +43,28 @@ func (q *Query) SetData(data map[string]string) {
 type Table struct {
 	Name string
 	Location string
-	Header Header
+	Header *Header
 	LineSize int
 	FileDescriptor *os.File
+	Index []*Index
 }
 
 type Header struct {
 	Size int
 	Columns map[string]types.Type
 }
+
+type Index struct {
+	Cursor int
+	Location string
+	FileDescriptor *os.File
+}
+
+/*
+ *	TODO:
+ *	- Check one primery key min
+ *	- Create other id column else
+ */
 
 func Create(location, table string, fields map[string]types.Type) error {
 	fd, err := os.Create(location + "data/" + table)
@@ -63,7 +77,7 @@ func Create(location, table string, fields map[string]types.Type) error {
 	var line_length int
 	for name, column := range fields {
 		header += fmt.Sprintf("%s(%d)%s;", column.Alias, column.Size, name)
-		line_length += column.Size
+		line_length += column.Size + 1 //add separator character
 		if column.Indexable {
 			if err := CreateIndex(location, table, name); err != nil {
 				return err
@@ -101,6 +115,12 @@ func (table *Table) Remove() error {
 		table.FileDescriptor.Close()
 	}
 
+	for _, index := range table.Index {
+		if err := os.Remove(index.Location); err != nil {
+			return DBError{"Error deleting table index."}
+		}
+	}
+
 	if err := os.Remove(table.Location); err != nil {
 		return DBError{"Error deleting table."}
 	}
@@ -108,8 +128,13 @@ func (table *Table) Remove() error {
 	return nil
 }
 
-func Use(name, location string, fd *os.File, sizes_rgx, header_rgx *regexp.Regexp) (*Table, error) {
+func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, error) {
 	var err error
+
+	fd, err := os.OpenFile(location + "data/" + name, os.O_RDWR|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return nil, DBError{"Table not found."}
+	}
 
 	scanner := bufio.NewScanner(fd)
 	if !scanner.Scan() {
@@ -143,12 +168,26 @@ func Use(name, location string, fd *os.File, sizes_rgx, header_rgx *regexp.Regex
 		columns[column[3]] = types.Type{column[1], false, column_size, nil}
 	}
 
-	return &Table{name, location + name, Header{header_size, columns}, line_size, fd}, nil
+	index_path := location + "index/" + name
+	//var index []Index
+	if _, err = os.Stat(index_path); err != nil {
+		return nil, DBError{"Bad formated table: no index. Create it againg."} //Should not be here ever
+	}
+
+	index_files, err := ioutil.ReadDir(index_path)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("%#v", index_files)
+
+	return &Table{name, location + name, &Header{header_size, columns}, line_size, fd, nil}, nil
 }
 
 func (table *Table) Close() error {
-	if err := table.FileDescriptor.Close(); err != nil {
-		return DBError{"Error closing table"}
+	if table.FileDescriptor != nil {
+		if err := table.FileDescriptor.Close(); err != nil {
+			return DBError{"Error closing table"}
+		}
 	}
 	return nil
 }
