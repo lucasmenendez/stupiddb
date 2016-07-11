@@ -5,10 +5,11 @@ import (
 	"os"
 	"os/user"
 	"regexp"
-	//"stupiddb/query"
 	"stupiddb/tables"
 	"stupiddb/types"
 )
+
+
 
 type DBError struct {
 	Message string
@@ -18,20 +19,46 @@ func (err DBError) Error() string {
 	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
-type Query struct {
-	Table string
-	Filters map[string]string
-	Data map[string]string
+
+
+type Query interface {
+	NewQuery() *tables.Query
+	SetFilters(filters map[string]string)
+	SetData(data map[string]string)
 }
 
+
+
 type Engine struct {
+	Name string
 	Location string
 	Table *tables.Table
 	SizesRgx *regexp.Regexp
 	HeaderRgx *regexp.Regexp
 }
 
-func CreateInstance(database string) error {
+func Instance(schema string) (*Engine, error) {
+	user, err := user.Current()
+	if err != nil {
+		return nil, DBError{"Error getting username."}
+	}
+
+	location := user.HomeDir + "/.stupiddb/" + schema + "/"
+
+	var fd *os.File
+	if fd, err = os.Open(location); err != nil {
+		return nil, DBError{"Error opening database."}
+	}
+
+	defer fd.Close()
+
+	sizes_rgx := regexp.MustCompile(`([0-9]*);([0-9]*)`)
+	header_rgx := regexp.MustCompile(`(int|float|string|bool)\(([0-9]*)\)([A-Za-z]*);`)
+
+	return &Engine{schema, location, nil, sizes_rgx, header_rgx}, nil
+}
+
+func Create(database string) error {
 	user, err := user.Current()
 	if err != nil {
 		return DBError{"Error getting username."}
@@ -47,32 +74,31 @@ func CreateInstance(database string) error {
 	if _, err = os.Stat(path + database); err != nil {
 		if err = os.Mkdir(path+database, os.ModePerm); err != nil {
 			return DBError{"Error creating database."}
+		} else {
+			if err = os.Mkdir(path + database + "/data", os.ModePerm); err != nil {
+				return DBError{"Error data folder."}
+			}
+			if err = os.Mkdir(path + database + "/index", os.ModePerm); err != nil {
+				return DBError{"Error index folder."}
+			}
 		}
-		return nil
 	}
 	return nil
 }
 
-func Instance(schema string) (*Engine, error) {
-	user, err := user.Current()
-	if err != nil {
-		return nil, DBError{"Error getting username."}
+func (db *Engine) Remove() error {
+	if db.Table != nil {
+		if err := db.Table.Remove(); err != nil {
+			return err
+		}
 	}
 
-	location := user.HomeDir + "/.stupiddb/" + schema
-
-	var fd *os.File
-	if fd, err = os.Open(location); err != nil {
-		return nil, DBError{"Error opening database."}
+	if err := os.RemoveAll(db.Location); err != nil {
+		return DBError{"Error deleting database."}
 	}
-
-	defer fd.Close()
-
-	sizes_rgx := regexp.MustCompile(`([0-9]*);([0-9]*)`)
-	header_rgx := regexp.MustCompile(`(int|float|string|bool)\(([0-9]*)\)([A-Za-z]*);`)
-
-	return &Engine{location + "/", nil, sizes_rgx, header_rgx}, nil
+	return nil
 }
+
 
 func (db *Engine) UseTable(table string) {
 	fd, err := os.OpenFile(db.Location + table, os.O_RDWR|os.O_APPEND, os.ModePerm)
@@ -91,28 +117,6 @@ func (db *Engine) UseTable(table string) {
 	return
 }
 
-func (db *Engine) CloseTable() {
-	db.Table.FileDescriptor.Close()
-	return
-}
-
-func (db *Engine) CreateTable(table string, fields map[string]types.Type) error {
-	fd, err := os.Create(db.Location + table)
-	if err != nil {
-		return DBError{"Error creating database file."}
-	}
-	defer fd.Close()
-
-	var header string
-	var line_length int
-	for name, column := range fields {
-		header += fmt.Sprintf("%s(%d)%s;", column.Alias, column.Size, name)
-		line_length += column.Size
-	}
-	header = fmt.Sprintf("%d;%d\n%s", len(header), line_length, header)
-
-	if _, err = fd.Write([]byte(header)); err != nil {
-		return DBError{"Error creating database struct."}
-	}
-	return nil
+func (db *Engine) NewTable(table string, fields map[string]types.Type) error {
+	return tables.Create(db.Location, table, fields)
 }
