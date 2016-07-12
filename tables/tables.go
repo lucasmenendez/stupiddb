@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"io/ioutil"
 	"stupiddb/types"
+	"stupiddb/encoder"
 )
 
 
@@ -55,7 +56,7 @@ type Header struct {
 }
 
 type Index struct {
-	Cursor int
+	Column string
 	Location string
 	FileDescriptor *os.File
 }
@@ -77,7 +78,7 @@ func Create(location, table string, fields map[string]types.Type) error {
 	var line_length int
 	for name, column := range fields {
 		header += fmt.Sprintf("%s(%d)%s;", column.Alias, column.Size, name)
-		line_length += column.Size + 1 //add separator character
+		line_length += column.Size
 		if column.Indexable {
 			if err := CreateIndex(location, table, name); err != nil {
 				return err
@@ -116,13 +117,13 @@ func (table *Table) Remove() error {
 	}
 
 	for _, index := range table.Index {
-		if err := os.Remove(index.Location); err != nil {
+		if err := os.Remove(index.Location + index.Column); err != nil {
 			return DBError{"Error deleting table index."}
 		}
 	}
 
-	if err := os.Remove(table.Location); err != nil {
-		return DBError{"Error deleting table."}
+	if err := os.RemoveAll(table.Location + "data/" + table.Name); err != nil {
+		return DBError{"Error deleting table data."}
 	}
 
 	return nil
@@ -168,8 +169,7 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 		columns[column[3]] = types.Type{column[1], false, column_size, nil}
 	}
 
-	index_path := location + "index/" + name
-	//var index []Index
+	index_path := location + "index/" + name + "/"
 	if _, err = os.Stat(index_path); err != nil {
 		return nil, DBError{"Bad formated table: no index. Create it againg."} //Should not be here ever
 	}
@@ -178,9 +178,21 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("%#v", index_files)
 
-	return &Table{name, location + name, &Header{header_size, columns}, line_size, fd, nil}, nil
+	var index []*Index
+	for _, file := range index_files {
+		var index_name string = file.Name()
+		var index_fd *os.File
+		var err error
+
+		if index_fd, err = os.Open(index_path + index_name); err != nil {
+			return nil, DBError{"Error opening index."}
+		}
+
+		index = append(index, &Index{index_name, index_path, index_fd})
+	}
+
+	return &Table{name, location, &Header{header_size, columns}, line_size, fd, index}, nil
 }
 
 func (table *Table) Close() error {

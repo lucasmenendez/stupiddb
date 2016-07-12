@@ -2,6 +2,8 @@ package types
 
 import (
 	"fmt"
+	"stupiddb/encoder"
+	"stupiddb/decoder"
 )
 
 type DBError struct {
@@ -35,6 +37,40 @@ func String(size int, indexable bool) Type {
 	return Type{"string", indexable, size, nil}
 }
 
-func wrongConstrain(constrain string) bool {
-	return constrain != "primary" && constrain != "unique"
+func (data *Type) Encoder() error {
+	var err error
+
+	switch data.Alias {
+		case "string":
+			data.Content, err = encoder.String(data.Content, data.Size)
+		case "float":
+			data.Content, err = encoder.Float(data.Content)
+		case "int":
+			data.Content, err = encoder.Int(data.Content)
+		case "bool":
+			data.Content, err = encoder.Bool(data.Content)
+		default:
+			err = DBError{"Unknown data type."}
+	}
+
+	return err
+}
+
+func (data *Type) Decoder() error {
+	var err error
+
+	switch data.Alias {
+		case "string":
+			result, err = decoder.String(data.Content)
+		case "float":
+			result, err = decoder.Int(data.Content)
+		case "int":
+			result, err = decoder.Float(data.Content)
+		case "bool":
+			result, err = decoder.Bool(data.Content)
+		default:
+			err = DBError{"Unknown data type."}
+	}
+
+	return err
 }

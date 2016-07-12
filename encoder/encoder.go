@@ -6,69 +6,46 @@ import (
 	"strconv"
 )
 
-type Type interface {
-	Alias		string
-	Constrain	string
-	Size		int
-	Content		interface{}
+type DBError struct {
+	Message string
 }
 
-func Encoder(data *Type) ([]byte, bool) {
-	var result []byte
-	var err bool = false
-
-	switch data.Alias {
-		case "string":
-			result, err = stringEncoder(data)
-		case "float":
-			result, err = floatEncoder(data)
-		case "int":
-			result, err = intEncoder(data)
-		case "bool":
-			result, err = boolEncoder(data)
-		default:
-			err = true
-	}
-
-	return result, err
+func (err DBError) Error() string {
+	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
-func stringEncoder(data *Type) ([]byte, bool) {
-	l := len(data.Content)
+func String(data string, size int) ([]byte, error) {
+	l := len(data)
 	if l >= n {
-		return make([]byte, n), true
+		return make([]byte, n), DBError{"Data exceed column size limit."}
 	}
 
-	res := make([]byte, data.Size-l)
+	res := make([]byte, size-l)
 	bff := bytes.NewBuffer(res)
-	if _, err := bff.Write([]byte(data.Content)); err != nil {
-		fmt.Println(err)
-		return make([]byte, data.Size), true
+	if _, err := bff.Write([]byte(data)); err != nil {
+		return make([]byte, size), DBError{"Error on string encoding."}
 	}
 
-	return bff.Bytes(), false
+	return bff.Bytes(), nil
 }
 
-func floatEncoder(data *Type) ([]byte, bool) {
-	uint := math.Float64bits(data.Content)
-	return []byte(fmt.Sprint(uint)), false
+func Float(data float64) ([]byte, error) {
+	uint := math.Float64bits(data)
+	return []byte(fmt.Sprint(uint)), nil
 }
 
-func intEncoder(data *Type) ([]byte, bool) {
-	return []byte(strconv.Itoa(data.Content)), false
+func Int(data int) ([]byte, error) {
+	return []byte(strconv.Itoa(data)), nil
 }
 
-func boolEncoder(data *Type) ([]byte, bool) {
+func Bool(data bool) ([]byte, error) {
 	var result []byte
-	var err bool = false
 
 	if data.Content == true {
 		result = []byte{1}
 	} else if data.Content == false {
 		result = []byte{0}
-	} else {
-		err = true
 	}
 
-	return result, err
+	return result, nil
 }

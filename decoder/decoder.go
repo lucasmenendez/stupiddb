@@ -6,63 +6,42 @@ import (
 	"strconv"
 )
 
-type Type interface {
-	Alias		string
-	Constrain	string
-	Size		int
-	Content		interface{}
+type DBError struct {
+	Message string
 }
 
-func Decoder(data *Type) ({}interface, bool) {
-	var result {}interface
-	var err bool = false
-
-	switch data.Alias {
-		case "string":
-			result, err = stringDecoder(data)
-		case "float":
-			result, err = floatDecoder(data)
-		case "int":
-			result, err = intDecoder(data)
-		case "bool":
-			result, err = boolDecoder(data)
-		default:
-			err = true
-	}
-
-	return result, err
+func (err DBError) Error() string {
+	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
-func stringDecoder(data *Type) (string, bool) {
-	return string(data.Content), false
+func String(data []byte) (string, error) {
+	return string(data), nil
 }
 
-func floatDecoder(data *Type) (float64, bool) {
-	uint, err := strconv.ParseUint(string(data.Content), 10, 64)
+func Float(data []byte) (float64, error) {
+	res, err := strconv.ParseUint(string(data), 10, 64)
 	if err != nil {
-		return 0.0, err
-	} else {
-		return math.Float64frombits(uint), nil
+		return 0.0, DBError{"Error on float decoding."}
 	}
-
+	return res, nil
 }
 
-func intDecoder(data *Type) (int, bool) {
+func Int(data []byte) (int, error) {
 	var res int
 	var err error
 
-	if res, err = strconv.Atoi(string(data.Content)); err != nil {
-		return 0, true
+	if res, err = strconv.Atoi(string(data)); err != nil {
+		return 0, DBError{"Error on float decoding."}
 	}
-	return res, false
+	return res, nil
 }
 
-func boolDecoder(data *Type) (bool, bool) {
+func Bool(data []byte) (bool, erro) {
 	var res bool = false
 
-	if data.Content[0] == 1 {
+	if data[0] == 1 {
 		res = true
 	}
 
-	return res, false
+	return res, nil
 }
