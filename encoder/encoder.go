@@ -3,6 +3,7 @@ package encoder
 import (
 	"fmt"
 	"math"
+	"bytes"
 	"strconv"
 )
 
@@ -16,8 +17,8 @@ func (err DBError) Error() string {
 
 func String(data string, size int) ([]byte, error) {
 	l := len(data)
-	if l >= n {
-		return make([]byte, n), DBError{"Data exceed column size limit."}
+	if l >= size {
+		return make([]byte, size), DBError{"Data exceed column size limit."}
 	}
 
 	res := make([]byte, size-l)
@@ -41,9 +42,9 @@ func Int(data int) ([]byte, error) {
 func Bool(data bool) ([]byte, error) {
 	var result []byte
 
-	if data.Content == true {
+	if data {
 		result = []byte{1}
-	} else if data.Content == false {
+	} else {
 		result = []byte{0}
 	}
 

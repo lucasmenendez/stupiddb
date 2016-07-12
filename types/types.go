@@ -42,13 +42,13 @@ func (data *Type) Encoder() error {
 
 	switch data.Alias {
 		case "string":
-			data.Content, err = encoder.String(data.Content, data.Size)
+			data.Content, err = encoder.String(data.Content.(string), data.Size)
 		case "float":
-			data.Content, err = encoder.Float(data.Content)
+			data.Content, err = encoder.Float(data.Content.(float64))
 		case "int":
-			data.Content, err = encoder.Int(data.Content)
+			data.Content, err = encoder.Int(data.Content.(int))
 		case "bool":
-			data.Content, err = encoder.Bool(data.Content)
+			data.Content, err = encoder.Bool(data.Content.(bool))
 		default:
 			err = DBError{"Unknown data type."}
 	}
@@ -61,13 +61,13 @@ func (data *Type) Decoder() error {
 
 	switch data.Alias {
 		case "string":
-			result, err = decoder.String(data.Content)
+			data.Content, err = decoder.String(data.Content)
 		case "float":
-			result, err = decoder.Int(data.Content)
+			data.Content, err = decoder.Int(data.Content)
 		case "int":
-			result, err = decoder.Float(data.Content)
+			data.Content, err = decoder.Float(data.Content)
 		case "bool":
-			result, err = decoder.Bool(data.Content)
+			data.Content, err = decoder.Bool(data.Content)
 		default:
 			err = DBError{"Unknown data type."}
 	}

@@ -19,11 +19,11 @@ func String(data []byte) (string, error) {
 }
 
 func Float(data []byte) (float64, error) {
-	res, err := strconv.ParseUint(string(data), 10, 64)
+	u_int, err := strconv.ParseUint(string(data), 10, 64)
 	if err != nil {
 		return 0.0, DBError{"Error on float decoding."}
 	}
-	return res, nil
+	return math.Float64frombits(u_int), nil
 }
 
 func Int(data []byte) (int, error) {
@@ -36,7 +36,7 @@ func Int(data []byte) (int, error) {
 	return res, nil
 }
 
-func Bool(data []byte) (bool, erro) {
+func Bool(data []byte) (bool, error) {
 	var res bool = false
 
 	if data[0] == 1 {
