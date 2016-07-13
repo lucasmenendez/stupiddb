@@ -15,7 +15,7 @@ func (err DBError) Error() string {
 	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
-func String(data string, size int) ([]byte, error) {
+func String(data string, size int) (interface{}, error) {
 	l := len(data)
 	if l >= size {
 		return make([]byte, size), DBError{"Data exceed column size limit."}
@@ -30,16 +30,16 @@ func String(data string, size int) ([]byte, error) {
 	return bff.Bytes(), nil
 }
 
-func Float(data float64) ([]byte, error) {
+func Float(data float64) (interface{}, error) {
 	uint := math.Float64bits(data)
 	return []byte(fmt.Sprint(uint)), nil
 }
 
-func Int(data int) ([]byte, error) {
-	return []byte(strconv.Itoa(data)), nil
+func Int(data int64) (interface{}, error) {
+	return []byte(strconv.Itoa(int(data))), nil
 }
 
-func Bool(data bool) ([]byte, error) {
+func Bool(data bool) (interface{}, error) {
 	var result []byte
 
 	if data {

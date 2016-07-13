@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"reflect"
 	"stupiddb/encoder"
 	"stupiddb/decoder"
 )
@@ -40,15 +41,17 @@ func String(size int, indexable bool) Type {
 func (data *Type) Encoder() error {
 	var err error
 
+	value := reflect.ValueOf(data.Content)
+
 	switch data.Alias {
 		case "string":
-			data.Content, err = encoder.String(data.Content.(string), data.Size)
+			data.Content, err = encoder.String(value.String(), data.Size)
 		case "float":
-			data.Content, err = encoder.Float(data.Content.(float64))
+			data.Content, err = encoder.Float(value.Float())
 		case "int":
-			data.Content, err = encoder.Int(data.Content.(int))
+			data.Content, err = encoder.Int(value.Int())
 		case "bool":
-			data.Content, err = encoder.Bool(data.Content.(bool))
+			data.Content, err = encoder.Bool(value.Bool())
 		default:
 			err = DBError{"Unknown data type."}
 	}
@@ -59,15 +62,17 @@ func (data *Type) Encoder() error {
 func (data *Type) Decoder() error {
 	var err error
 
+	value := reflect.ValueOf(data.Content).Bytes()
+
 	switch data.Alias {
 		case "string":
-			data.Content, err = decoder.String(data.Content)
+			data.Content, err = decoder.String(value)
 		case "float":
-			data.Content, err = decoder.Int(data.Content)
+			data.Content, err = decoder.Int(value)
 		case "int":
-			data.Content, err = decoder.Float(data.Content)
+			data.Content, err = decoder.Float(value)
 		case "bool":
-			data.Content, err = decoder.Bool(data.Content)
+			data.Content, err = decoder.Bool(value)
 		default:
 			err = DBError{"Unknown data type."}
 	}

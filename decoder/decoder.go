@@ -14,11 +14,11 @@ func (err DBError) Error() string {
 	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
-func String(data []byte) (string, error) {
+func String(data []byte) (interface{}, error) {
 	return string(data), nil
 }
 
-func Float(data []byte) (float64, error) {
+func Float(data []byte) (interface{}, error) {
 	u_int, err := strconv.ParseUint(string(data), 10, 64)
 	if err != nil {
 		return 0.0, DBError{"Error on float decoding."}
@@ -26,7 +26,7 @@ func Float(data []byte) (float64, error) {
 	return math.Float64frombits(u_int), nil
 }
 
-func Int(data []byte) (int, error) {
+func Int(data []byte) (interface{}, error) {
 	var res int
 	var err error
 
@@ -36,7 +36,7 @@ func Int(data []byte) (int, error) {
 	return res, nil
 }
 
-func Bool(data []byte) (bool, error) {
+func Bool(data []byte) (interface{}, error) {
 	var res bool = false
 
 	if data[0] == 1 {

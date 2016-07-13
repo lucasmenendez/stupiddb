@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"io/ioutil"
 	"stupiddb/types"
-	"stupiddb/encoder"
 )
 
 
