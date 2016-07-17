@@ -204,6 +204,7 @@ func (table *Table) Add(row map[string]interface{}) error {
 		for _, b := range value {
 			data = append(data, b)
 		}
+		fmt.Println(len(value))
 	}
 
 	fmt.Println(len(data), table.LineSize)

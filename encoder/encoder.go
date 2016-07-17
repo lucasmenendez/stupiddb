@@ -36,7 +36,22 @@ func Float(data float64) (interface{}, error) {
 }
 
 func Int(data int64) (interface{}, error) {
-	return []byte(strconv.Itoa(int(data))), nil
+	l := len(data)
+	if l > 4 {
+		return make([]bytem 4), DBError{"Data exceed int size."}
+	} else if l == 4 {
+		return []byte(strconv.Itoa(int(data))), nil
+	}
+
+	res := make([]byte, 4-l)
+	bff := bytes.NewBuffer(res)
+	content := []byte(strconv.Itoa(int(data)))
+
+	if _, err := bff.Write(content); err != nil {
+		return make([]byte, size), DBError{"Error on int encoding."}
+	}
+
+	return bff.Bytes(), nil
 }
 
 func Bool(data bool) (interface{}, error) {
