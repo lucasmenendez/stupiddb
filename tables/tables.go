@@ -20,26 +20,6 @@ func (err DBError) Error() string {
 }
 
 
-type Query struct {
-	Filters map[string]string
-	Data map[string]string
-}
-
-func NewQuery() *Query {
-	return &Query{}
-}
-
-func (q *Query) SetFilters(filters map[string]string) {
-	q.Filters = filters
-	return
-}
-
-func (q *Query) SetData(data map[string]string) {
-	q.Data = data
-	return
-}
-
-
 type Table struct {
 	Name string
 	Location string
@@ -202,3 +182,32 @@ func (table *Table) Close() error {
 	}
 	return nil
 }
+
+func (table *Table) Add(row map[string]interface{}) error {
+	//var err error
+
+	if len(row) != len(table.Header.Columns) {
+		return DBError{"Wrong data to insert."}
+	}
+	var data []byte
+	//var buffer *bytes.Buffer 
+	for column, content := range row {
+		fmt.Println("%s: %#v", column, content)
+		var t types.Type = table.Header.Columns[column]
+		t.Content = content
+
+		if err := t.Encoder(); err != nil {
+			return err
+		}
+
+		value := t.Content.([]byte)
+		for _, b := range value {
+			data = append(data, b)
+		}
+	}
+
+	fmt.Println(len(data), table.LineSize)
+
+	return nil
+}
+

@@ -21,14 +21,6 @@ func (err DBError) Error() string {
 
 
 
-type Query interface {
-	NewQuery() *tables.Query
-	SetFilters(filters map[string]string)
-	SetData(data map[string]string)
-}
-
-
-
 type Engine struct {
 	Name string
 	Location string
