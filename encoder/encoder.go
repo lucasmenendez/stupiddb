@@ -36,19 +36,19 @@ func Float(data float64) (interface{}, error) {
 }
 
 func Int(data int64) (interface{}, error) {
-	l := len(data)
+	content := []byte(strconv.Itoa(int(data)))
+	l := len(content)
 	if l > 4 {
-		return make([]bytem 4), DBError{"Data exceed int size."}
+		return make([]byte, 4), DBError{"Data exceed int size."}
 	} else if l == 4 {
-		return []byte(strconv.Itoa(int(data))), nil
+		return content, nil
 	}
 
 	res := make([]byte, 4-l)
 	bff := bytes.NewBuffer(res)
-	content := []byte(strconv.Itoa(int(data)))
 
 	if _, err := bff.Write(content); err != nil {
-		return make([]byte, size), DBError{"Error on int encoding."}
+		return make([]byte, 4), DBError{"Error on int encoding."}
 	}
 
 	return bff.Bytes(), nil

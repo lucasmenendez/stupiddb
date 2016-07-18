@@ -3,6 +3,7 @@ package tables
 import (
 	"os"
 	"fmt"
+	"bytes"
 	"bufio"
 	"regexp"
 	"strconv"
@@ -64,7 +65,7 @@ func Create(location, table string, fields map[string]types.Type) error {
 			}
 		}
 	}
-	header = fmt.Sprintf("%d;%d\n%s", len(header), line_length, header)
+	header = fmt.Sprintf("%d;%d\n%s\n", len(header), line_length, header)
 
 	if _, err = fd.Write([]byte(header)); err != nil {
 		return DBError{"Error creating database struct."}
@@ -125,10 +126,10 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 
 	sizes_line := scanner.Text()
 	res := sizes_rgx.FindStringSubmatch(sizes_line)
-	if line_size, err = strconv.Atoi(res[1]); err != nil {
+	if line_size, err = strconv.Atoi(res[2]); err != nil {
 		return nil, err
 	}
-	if header_size, err = strconv.Atoi(res[2]); err != nil {
+	if header_size, err = strconv.Atoi(res[1]); err != nil {
 		return nil, err
 	}
 
@@ -184,15 +185,15 @@ func (table *Table) Close() error {
 }
 
 func (table *Table) Add(row map[string]interface{}) error {
-	//var err error
+	var err error
 
 	if len(row) != len(table.Header.Columns) {
 		return DBError{"Wrong data to insert."}
 	}
+
 	var data []byte
-	//var buffer *bytes.Buffer 
+	bff := bytes.NewBuffer(data)
 	for column, content := range row {
-		fmt.Println("%s: %#v", column, content)
 		var t types.Type = table.Header.Columns[column]
 		t.Content = content
 
@@ -201,13 +202,29 @@ func (table *Table) Add(row map[string]interface{}) error {
 		}
 
 		value := t.Content.([]byte)
-		for _, b := range value {
-			data = append(data, b)
+		if _, err = bff.Write(value); err != nil {
+			return DBError{"Error storing new record."}
 		}
-		fmt.Println(len(value))
 	}
 
-	fmt.Println(len(data), table.LineSize)
+	data = bff.Bytes()
+	fmt.Println(data)
+	fmt.Println(string(data))
+	fmt.Println(len(data))
+
+	var s string
+	for _, b := range data {
+		s += fmt.Sprintf("%q", b)
+	}
+	fmt.Println(s)
+
+//	var n int
+//
+//	if n, err = table.FileDescriptor.Write(data); err != nil {
+//		return DBError{"Error storing new record."}
+//	}
+//
+//	fmt.Println(n)
 
 	return nil
 }
