@@ -38,7 +38,7 @@ type Header struct {
 type Index struct {
 	Column string
 	Location string
-	FileDescriptor *os.File
+	Content []string
 }
 
 /*
@@ -48,11 +48,25 @@ type Index struct {
  */
 
 func Create(location, table string, fields map[string]types.Type) error {
-	fd, err := os.Create(location + "data/" + table)
-	if err != nil {
+	var fd *os.File
+	var err error
+
+	var table_path string = location + table
+	var table_data string = table_path + "/data"
+	var table_index string = table_path + "/index"
+
+	if err = os.Mkdir(table_path, os.ModePerm); err != nil {
 		return DBError{"Error creating database file."}
+	} else {
+		if fd, err = os.Create(table_data); err != nil {
+			return DBError{"Error data folder."}
+		}
+		defer fd.Close()
+
+		if err = os.Mkdir(table_index, os.ModePerm); err != nil {
+			return DBError{"Error index folder."}
+		}
 	}
-	defer fd.Close()
 
 	var header string
 	var line_length int
@@ -65,8 +79,8 @@ func Create(location, table string, fields map[string]types.Type) error {
 			}
 		}
 	}
-	header = fmt.Sprintf("%d;%d\n%s\n", len(header), line_length, header)
 
+	header = fmt.Sprintf("%d;%d\n%s", len(header), line_length, header)
 	if _, err = fd.Write([]byte(header)); err != nil {
 		return DBError{"Error creating database struct."}
 	}
@@ -76,18 +90,19 @@ func Create(location, table string, fields map[string]types.Type) error {
 
 func CreateIndex(location, table, column string) error {
 	var err error
-	indexContainer := location + "index/" + table
-	if _, err = os.Stat(indexContainer); err != nil {
-		if err = os.Mkdir(indexContainer, os.ModePerm); err != nil {
+	var index_path string = location + table + "/index"
+	if _, err = os.Stat(index_path); err != nil {
+		if err = os.Mkdir(index_path, os.ModePerm); err != nil {
 			return DBError{"Error creating table index container."}
 		}
 	}
 
-	fd, err := os.Create(indexContainer + "/" + column)
-	if err != nil {
+	var fd *os.File
+	if fd, err = os.Create(index_path + "/" + column); err != nil {
 		return DBError{"Error creating column index."}
 	}
 	fd.Close()
+
 	return nil
 }
 
@@ -97,12 +112,16 @@ func (table *Table) Remove() error {
 	}
 
 	for _, index := range table.Index {
+		if index.FileDescriptor != nil {
+			index.FileDescriptor.Close()
+		}
+
 		if err := os.Remove(index.Location + index.Column); err != nil {
 			return DBError{"Error deleting table index."}
 		}
 	}
 
-	if err := os.RemoveAll(table.Location + "data/" + table.Name); err != nil {
+	if err := os.RemoveAll(table.Location + table.Name); err != nil {
 		return DBError{"Error deleting table data."}
 	}
 
@@ -111,9 +130,9 @@ func (table *Table) Remove() error {
 
 func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, error) {
 	var err error
+	var fd *os.File
 
-	fd, err := os.OpenFile(location + "data/" + name, os.O_RDWR|os.O_APPEND, os.ModePerm)
-	if err != nil {
+	if fd, err = os.OpenFile(location + name + "/data", os.O_RDWR|os.O_APPEND, os.ModePerm); err != nil {
 		return nil, DBError{"Table not found."}
 	}
 
@@ -149,14 +168,14 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 		columns[column[3]] = types.Type{column[1], false, column_size, nil}
 	}
 
-	index_path := location + "index/" + name + "/"
+	var index_path string = location + name + "/index/"
 	if _, err = os.Stat(index_path); err != nil {
 		return nil, DBError{"Bad formated table: no index. Create it againg."} //Should not be here ever
 	}
 
-	index_files, err := ioutil.ReadDir(index_path)
-	if err != nil {
-		fmt.Println(err)
+	var index_files []os.FileInfo
+	if index_files, err = ioutil.ReadDir(index_path); err != nil {
+		return nil, DBError{"Error getting table index."}
 	}
 
 	var index []*Index
@@ -168,6 +187,9 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 		if index_fd, err = os.Open(index_path + index_name); err != nil {
 			return nil, DBError{"Error opening index."}
 		}
+		defer index_fd.Close()
+
+		scanner := bufio.NewScanner(index_fd)
 
 		index = append(index, &Index{index_name, index_path, index_fd})
 	}
@@ -199,32 +221,20 @@ func (table *Table) Add(row map[string]interface{}) error {
 
 		if err := t.Encoder(); err != nil {
 			return err
-		}
-
-		value := t.Content.([]byte)
-		if _, err = bff.Write(value); err != nil {
-			return DBError{"Error storing new record."}
+		} else { //Ordered writting
+			value := t.Content.([]byte)
+			if _, err = bff.Write(value); err != nil {
+				return DBError{"Error storing new record."}
+			}
 		}
 	}
 
 	data = bff.Bytes()
-	fmt.Println(data)
-	fmt.Println(string(data))
-	fmt.Println(len(data))
 
-	var s string
-	for _, b := range data {
-		s += fmt.Sprintf("%q", b)
+	var n int
+	if n, err = table.FileDescriptor.Write(data); err != nil || n != table.LineSize {
+		return DBError{"Error storing new record."}
 	}
-	fmt.Println(s)
-
-//	var n int
-//
-//	if n, err = table.FileDescriptor.Write(data); err != nil {
-//		return DBError{"Error storing new record."}
-//	}
-//
-//	fmt.Println(n)
 
 	return nil
 }

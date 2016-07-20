@@ -45,7 +45,7 @@ func Instance(schema string) (*Engine, error) {
 	defer fd.Close()
 
 	sizes_rgx := regexp.MustCompile(`([0-9]*);([0-9]*)`)
-	header_rgx := regexp.MustCompile(`(int|float|string|bool)\(([0-9]*)\)([A-Za-z]*);`)
+	header_rgx := regexp.MustCompile(`(int|float|string|bool)\(([0-9]*)\)([A-Za-z\_\-]*);`)
 
 	return &Engine{schema, location, nil, sizes_rgx, header_rgx}, nil
 }
@@ -56,7 +56,7 @@ func Create(database string) error {
 		return DBError{"Error getting username."}
 	}
 
-	path := user.HomeDir + "/.stupiddb/"
+	var path string = user.HomeDir + "/.stupiddb/"
 	if _, err = os.Stat(path); err != nil {
 		if err = os.Mkdir(path, os.ModePerm); err != nil {
 			return DBError{"Error overwritting database."}
@@ -67,12 +67,6 @@ func Create(database string) error {
 		if err = os.Mkdir(path+database, os.ModePerm); err != nil {
 			return DBError{"Error creating database."}
 		} else {
-			if err = os.Mkdir(path + database + "/data", os.ModePerm); err != nil {
-				return DBError{"Error data folder."}
-			}
-			if err = os.Mkdir(path + database + "/index", os.ModePerm); err != nil {
-				return DBError{"Error index folder."}
-			}
 		}
 	}
 	return nil
