@@ -223,13 +223,12 @@ func (table *Table) Add(row map[string]interface{}) error {
 		return DBError{"Wrong data to insert."}
 	}
 
+	var columns_to_index map[string]string
 	var data []byte
 	bff := bytes.NewBuffer(data)
 	for column, content := range row {
 		var t types.Type = table.Header.Columns[column]
 		t.Content = content
-
-		fmt.Println(t.Indexable)
 
 		if err := t.Encoder(); err != nil {
 			return err
@@ -239,6 +238,10 @@ func (table *Table) Add(row map[string]interface{}) error {
 				return DBError{"Error storing new record."}
 			}
 		}
+
+		if t.Indexable {
+			columns_to_index[column] = string(t.Content.([]byte))
+		}
 	}
 
 	data = bff.Bytes()
@@ -246,6 +249,21 @@ func (table *Table) Add(row map[string]interface{}) error {
 	var n int
 	if n, err = table.FileDescriptor.Write(data); err != nil || n != table.LineSize {
 		return DBError{"Error storing new record."}
+	} else if len(columns_to_index) > 0 {
+		for column, content := range columns_to_index {
+			for _, index := range table.Index {
+				if index.Column == column {
+					if fd, err := os.Open(index.Location + index.Column); err != nil {
+						return DBError{"Error indexing row."}
+					} else {
+						var l int
+						if l, err = fd.Write([]byte(content)); err != nil || l != len(content) {
+							return DBError{"Error writting in index."}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return nil
