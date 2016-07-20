@@ -71,13 +71,16 @@ func Create(location, table string, fields map[string]types.Type) error {
 	var header string
 	var line_length int
 	for name, column := range fields {
-		header += fmt.Sprintf("%s(%d)%s;", column.Alias, column.Size, name)
-		line_length += column.Size
+		var indexable string = ""
 		if column.Indexable {
 			if err := CreateIndex(location, table, name); err != nil {
 				return err
 			}
+			indexable = "*"
 		}
+
+		header += fmt.Sprintf("%s(%d)%s%s;", column.Alias, column.Size, name, indexable)
+		line_length += column.Size
 	}
 
 	header = fmt.Sprintf("%d;%d\n%s", len(header), line_length, header)
@@ -112,10 +115,6 @@ func (table *Table) Remove() error {
 	}
 
 	for _, index := range table.Index {
-		if index.FileDescriptor != nil {
-			index.FileDescriptor.Close()
-		}
-
 		if err := os.Remove(index.Location + index.Column); err != nil {
 			return DBError{"Error deleting table index."}
 		}
@@ -165,7 +164,13 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 		if column_size, err = strconv.Atoi(column[2]); err != nil {
 			return nil, err
 		}
-		columns[column[3]] = types.Type{column[1], false, column_size, nil}
+
+		var indexable bool = false
+		if column[4] == "*" {
+			indexable = true
+		}
+
+		columns[column[3]] = types.Type{column[1], indexable, column_size, nil}
 	}
 
 	var index_path string = location + name + "/index/"
@@ -182,6 +187,7 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	for _, file := range index_files {
 		var index_name string = file.Name()
 		var index_fd *os.File
+		var index_content []string
 		var err error
 
 		if index_fd, err = os.Open(index_path + index_name); err != nil {
@@ -190,8 +196,12 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 		defer index_fd.Close()
 
 		scanner := bufio.NewScanner(index_fd)
+		for scanner.Scan() {
+			index_content = append(index_content, scanner.Text())
+		}
 
-		index = append(index, &Index{index_name, index_path, index_fd})
+
+		index = append(index, &Index{index_name, index_path, index_content})
 	}
 
 	return &Table{name, location, &Header{header_size, columns}, line_size, fd, index}, nil
@@ -218,6 +228,8 @@ func (table *Table) Add(row map[string]interface{}) error {
 	for column, content := range row {
 		var t types.Type = table.Header.Columns[column]
 		t.Content = content
+
+		fmt.Println(t.Indexable)
 
 		if err := t.Encoder(); err != nil {
 			return err

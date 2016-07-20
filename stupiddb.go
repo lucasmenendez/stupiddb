@@ -45,7 +45,7 @@ func Instance(schema string) (*Engine, error) {
 	defer fd.Close()
 
 	sizes_rgx := regexp.MustCompile(`([0-9]*);([0-9]*)`)
-	header_rgx := regexp.MustCompile(`(int|float|string|bool)\(([0-9]*)\)([A-Za-z\_\-]*);`)
+	header_rgx := regexp.MustCompile(`(int|float|string|bool)\(([0-9]*)\)([A-Za-z\_\-]*)(\*|);`)
 
 	return &Engine{schema, location, nil, sizes_rgx, header_rgx}, nil
 }
@@ -64,7 +64,7 @@ func Create(database string) error {
 	}
 
 	if _, err = os.Stat(path + database); err != nil {
-		if err = os.Mkdir(path+database, os.ModePerm); err != nil {
+		if err = os.Mkdir(path + database, os.ModePerm); err != nil {
 			return DBError{"Error creating database."}
 		} else {
 		}
