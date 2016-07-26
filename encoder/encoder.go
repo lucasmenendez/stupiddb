@@ -36,7 +36,7 @@ func String(data string, size int) (interface{}, error) {
 }
 
 func Float(data float64) (interface{}, error) {
-	content := fmt.Sprint(math.Float64bits(data))
+	content := []byte(fmt.Sprint(math.Float64bits(data)))
 
 	var length int = len(content)
 	var offset int = 20 - length
@@ -51,7 +51,7 @@ func Float(data float64) (interface{}, error) {
 	}
 
 	bff := bytes.NewBuffer(res)
-	if writted, err := bff.Write([]byte(content)); err != nil || writted != length {
+	if writted, err := bff.Write(content); err != nil || writted != length {
 		return []byte{}, DBError{"Error on float encoding"}
 	}
 
@@ -76,7 +76,7 @@ func Int(data int64) (interface{}, error) {
 	}
 
 	bff := bytes.NewBuffer(res)
-	if writted, err := bff.Write(content); err != nil || writted != length{
+	if writted, err := bff.Write(content); err != nil || writted != length {
 		return []byte{}, DBError{"Error on int encoding."}
 	}
 

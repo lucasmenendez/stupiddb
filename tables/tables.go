@@ -35,6 +35,21 @@ type Header struct {
 	Columns map[string]types.Type
 }
 
+func formatHeader(fields map[string]types.Type) (string, error) {
+	var header string
+	var line_length int
+	for name, col := range fields {
+		var index string = ""
+		if col.Indexable {
+			index = "*"
+		}
+
+		header += fmt.Sprintf("%s(%d)%s%s;", col.Alias, col.Size, name, index)
+		line_length += col.Size
+	}
+
+	return fmt.Sprintf("%d;%d\n%s", len(header), line_length, header), nil
+}
 
 /*
  *	TODO:
@@ -64,24 +79,21 @@ func Create(location, table string, fields map[string]types.Type) error {
 	}
 
 	var header string
-	var line_length int
-	for name, column := range fields {
-		var indexable string = ""
-		if column.Indexable {
-			if err := index.New(location, table, name); err != nil {
-				return err
-			}
-			indexable = "*"
-		}
-
-		header += fmt.Sprintf("%s(%d)%s%s;", column.Alias, column.Size, name, indexable)
-		line_length += column.Size
+	if header, err = formatHeader(fields); err != nil {
+		return err
 	}
 
-	header = fmt.Sprintf("%d;%d\n%s", len(header), line_length, header)
 	if _, err = fd.Write([]byte(header)); err != nil {
 		return DBError{"Error creating database struct."}
 	}
+
+	for name, col := range fields {
+		if col.Indexable {
+			if err := index.New(location, table, name); err != nil {
+				return err
+			}
+		}
+	 }
 
 	return nil
 }
@@ -175,8 +187,8 @@ func (table *Table) Add(row map[string]interface{}) error {
 		return DBError{"Wrong data to insert."}
 	}
 
-	var columns_to_index map[string]string = make(map[string]string, len(table.Index))
 	var data []byte
+	columns_to_index := make(map[string]string, len(table.Index))
 	bff := bytes.NewBuffer(data)
 	for column, content := range row {
 		var t types.Type = table.Header.Columns[column]
@@ -200,7 +212,7 @@ func (table *Table) Add(row map[string]interface{}) error {
 		for _, index := range table.Index {
 			if index.Column == column {
 				if index.Exist(content) {
-					return DBError{"Column "+column+" contrain violation."}
+					return DBError{"Row with '"+column+"' equal to '"+content+"' already exists."}
 				} else {
 					if err := index.Append(content); err != nil {
 						return err

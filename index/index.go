@@ -53,8 +53,8 @@ func Get(index_path string) ([]*Index, error) {
 	var index []*Index
 	var err error
 
-	if _, err = os.Stat(index_path); err != nil {
-		return index, DBError{"Bad formated table: no index. Create it againg."} //Should not be here ever
+	if _, err = os.Stat(index_path); err != nil {//Should not be here ever
+		return index, DBError{"Bad formated table: no index. Create it againg."}
 	}
 
 	var index_files []os.FileInfo
