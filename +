@@ -92,8 +92,8 @@ func (table *Table) Remove() error {
 	}
 
 	for _, index := range table.Index {
-		if err := index.Remove(); err != nil {
-			return err
+		if err := os.Remove(index.Location + index.Column); err != nil {
+			return DBError{"Error deleting table index."}
 		}
 	}
 
@@ -150,13 +150,13 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 		columns[column[3]] = types.Type{column[1], indexable, column_size, nil}
 	}
 
-	var table_index []*index.Index
-	if table_index, err = index.Get(location + name + "/index/"); err != nil {
+	var index []*index.Index
+	if index, err = index.Get(location + name + "/index/"); err != nil {
 		return nil, err
 	}
 	var header *Header = &Header{header_size, columns}
 
-	return &Table{name, location, header, line_size, fd, table_index}, nil
+	return &Table{name, location, header, line_size, fd, index}, nil
 }
 
 func (table *Table) Close() error {
@@ -196,24 +196,20 @@ func (table *Table) Add(row map[string]interface{}) error {
 		}
 	}
 
-	for column, content := range columns_to_index {
-		for _, index := range table.Index {
-			if index.Column == column {
-				if index.Exist(content) {
-					return DBError{"Column "+column+" contrain violation."}
-				} else {
-					if err := index.Append(content); err != nil {
-						return err
-					}
+	data = bff.Bytes()
+
+	var n int
+	if n, err = table.FileDescriptor.Write(data); err != nil || n != table.LineSize {
+		return DBError{"Error storing new record."}
+	} else if len(columns_to_index) > 0 {
+		for column, content := range columns_to_index {
+			for _, index := range table.Index {
+				if index.Column == column {
+					var record = fmt.Sprintf("%s\n", content)
+					return index.Append(content);
 				}
 			}
 		}
-	}
-
-	var n int
-	data = bff.Bytes()
-	if n, err = table.FileDescriptor.Write(data); err != nil || n != table.LineSize {
-		return DBError{"Error storing new record."}
 	}
 
 	return nil
