@@ -141,7 +141,7 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 		return nil, DBError{"Table not found."}
 	}
 
-	scanner := bufio.NewScanner(fd)
+	var scanner *bufio.Scanner = bufio.NewScanner(fd)
 	if !scanner.Scan() {
 		return nil, DBError{"Bad formated table."}
 	}
@@ -187,15 +187,27 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	var header *Header = &Header{header_size, columns}
 	var mutex *sync.Mutex = &sync.Mutex{}
 
+	if _, err = fd.Seek(0, 0); err != nil {
+		return nil, DBError{"Error seeking table file descriptor."}
+	}
+
 	return &Table{name, location, header, line_size, fd, table_index, mutex}, nil
 }
 
 func (table *Table) Close() error {
+	table.mutex.Lock()
+	defer table.mutex.Unlock()
+
+	if err := table.FileDescriptor.Sync(); err != nil {
+		return DBError{"Error commiting table record."}
+	}
+
 	if table.FileDescriptor != nil {
 		if err := table.FileDescriptor.Close(); err != nil {
 			return DBError{"Error closing table"}
 		}
 	}
+
 	return nil
 }
 
@@ -257,7 +269,47 @@ func (table *Table) Add(row map[string]interface{}) error {
 		return DBError{"Error storing new record."}
 	}
 
+	if err = table.FileDescriptor.Sync(); err != nil {
+		return DBError{"Error commiting new record."}
+	}
+
 	table.mutex.Unlock()
 
 	return nil
+}
+
+func (table *Table) Get() ([]interface{}, error) {
+	var err error
+
+	table.mutex.Lock()
+	if _, err = table.FileDescriptor.Seek(0, 0); err != nil {
+		return nil, DBError{"Error seeking table file descriptor."}
+	}
+
+	var scanner *bufio.Scanner = bufio.NewScanner(table.FileDescriptor)
+	if !scanner.Scan() {
+		return nil, DBError{"Bad formated table."}
+	}
+
+	if !scanner.Scan() {
+		return nil, DBError{"Bad formated table."}
+	}
+	var content string = scanner.Text();
+	table.mutex.Unlock()
+
+	//TODO: get columns sizes
+
+	var results []map[string]types.Type
+	var offset int64 = int64(table.Header.Size)
+	var file_length int64 = int64(len(content) - table.Header.Size)
+
+	for offset <= file_length {
+		var endline int64 = offset + int64(table.LineSize)
+		var row string = content[offset:endline]
+		offset = endline
+
+		//TODO: parse each row
+	}
+
+	return nil, err
 }
