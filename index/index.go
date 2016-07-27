@@ -3,6 +3,7 @@ package index
 import (
 	"os"
 	"fmt"
+	"sync"
 	"bufio"
 	"io/ioutil"
 )
@@ -20,6 +21,7 @@ type Index struct {
 	Column string
 	Location string
 	Content []string
+	mutex *sync.Mutex
 }
 
 func New(location, table, column string) error {
@@ -78,14 +80,17 @@ func Get(index_path string) ([]*Index, error) {
 			index_content = append(index_content, scanner.Text())
 		}
 
-
-		index = append(index, &Index{index_name, index_path, index_content})
+		var mutex *sync.Mutex = &sync.Mutex{}
+		index = append(index, &Index{index_name, index_path, index_content, mutex})
 	}
 
 	return index, nil
 }
 
 func (index *Index) Exist(needle string) bool {
+	index.mutex.Lock()
+	defer index.mutex.Unlock()
+
 	for _, value := range index.Content {
 		if value == needle {
 			return true
@@ -96,6 +101,9 @@ func (index *Index) Exist(needle string) bool {
 }
 
 func (index *Index) Find(needle string) (int, error) {
+	index.mutex.Lock()
+	defer index.mutex.Unlock()
+
 	for line_number, value := range index.Content {
 		if value == needle {
 			return line_number, nil
@@ -106,18 +114,35 @@ func (index *Index) Find(needle string) (int, error) {
 }
 
 func (index *Index) Append (content string) error {
+	var err error
 	var index_location = index.Location + index.Column
 
-	if fd, err := os.OpenFile(index_location, os.O_WRONLY | os.O_APPEND, os.ModeAppend); err != nil {
+	index.mutex.Lock()
+	defer index.mutex.Unlock()
+
+	var stat os.FileInfo
+	if stat, err = os.Stat(index_location); err != nil {
+		return DBError{"Error reading index."}
+	}
+
+	var old_size int64 = stat.Size()
+	fmt.Println(old_size)
+
+	var fd *os.File
+	if fd, err = os.OpenFile(index_location, os.O_WRONLY | os.O_APPEND, os.ModeAppend); err != nil {
 		return DBError{"Error indexing row."}
 	} else {
 		var l int
 		var record = fmt.Sprintf("%s\n", content)
 
 		if l, err = fd.Write([]byte(record)); err != nil {
-			return DBError{"Error writting in index."}
+			return DBError{"Indexed error."}
 		} else if l != len(record) {
-			//TODO: Delete last index line
+			if err = fd.Truncate(old_size); err != nil {
+				return DBError{"Indexed error. Rollback failed."}
+			} else {
+				return DBError{"Indexed error. Rollback done."}
+			}
 		} else {
 			index.Content = append(index.Content, content)
 		}

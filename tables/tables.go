@@ -3,6 +3,8 @@ package tables
 import (
 	"os"
 	"fmt"
+	"sort"
+	"sync"
 	"bytes"
 	"bufio"
 	"regexp"
@@ -28,6 +30,7 @@ type Table struct {
 	LineSize int
 	FileDescriptor *os.File
 	Index []*index.Index
+	mutex *sync.Mutex
 }
 
 type Header struct {
@@ -35,21 +38,34 @@ type Header struct {
 	Columns map[string]types.Type
 }
 
-func formatHeader(fields map[string]types.Type) (string, error) {
-	var header string
+func encodeHeader(fields map[string]types.Type) ([]byte, error) {
 	var line_length int
-	for name, col := range fields {
+	var header *bytes.Buffer = bytes.NewBuffer([]byte{})
+	var columns *bytes.Buffer = bytes.NewBuffer([]byte{})
+
+	var keys []string
+	for name := range fields {
+		keys = append(keys, name)
+	}
+
+	sort.Strings(keys)
+
+	for _, name := range keys {
+		var col types.Type = fields[name]
+
 		var index string = ""
 		if col.Indexable {
 			index = "*"
 		}
 
-		header += fmt.Sprintf("%s(%d)%s%s;", col.Alias, col.Size, name, index)
+		fmt.Fprintf(columns, "%s(%d)%s%s;", col.Alias, col.Size, name, index)
 		line_length += col.Size
 	}
 
-	return fmt.Sprintf("%d;%d\n%s", len(header), line_length, header), nil
+	fmt.Fprintf(header, "%d;%d\n%s", columns.Len(), line_length, columns.Bytes())
+	return header.Bytes(), nil
 }
+
 
 /*
  *	TODO:
@@ -78,12 +94,12 @@ func Create(location, table string, fields map[string]types.Type) error {
 		}
 	}
 
-	var header string
-	if header, err = formatHeader(fields); err != nil {
+	var header []byte
+	if header, err = encodeHeader(fields); err != nil {
 		return err
 	}
 
-	if _, err = fd.Write([]byte(header)); err != nil {
+	if _, err = fd.Write(header); err != nil {
 		return DBError{"Error creating database struct."}
 	}
 
@@ -120,7 +136,8 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	var err error
 	var fd *os.File
 
-	if fd, err = os.OpenFile(location + name + "/data", os.O_RDWR|os.O_APPEND, os.ModePerm); err != nil {
+	var path string = fmt.Sprintf("%s%s/data", location, name)
+	if fd, err = os.OpenFile(path, os.O_RDWR|os.O_APPEND, os.ModePerm); err != nil {
 		return nil, DBError{"Table not found."}
 	}
 
@@ -166,9 +183,11 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	if table_index, err = index.Get(location + name + "/index/"); err != nil {
 		return nil, err
 	}
-	var header *Header = &Header{header_size, columns}
 
-	return &Table{name, location, header, line_size, fd, table_index}, nil
+	var header *Header = &Header{header_size, columns}
+	var mutex *sync.Mutex = &sync.Mutex{}
+
+	return &Table{name, location, header, line_size, fd, table_index, mutex}, nil
 }
 
 func (table *Table) Close() error {
@@ -190,9 +209,17 @@ func (table *Table) Add(row map[string]interface{}) error {
 	var data []byte
 	columns_to_index := make(map[string]string, len(table.Index))
 	bff := bytes.NewBuffer(data)
-	for column, content := range row {
+
+	//Sorting map keys to iterate
+	var columns []string
+	for column := range row {
+		columns = append(columns, column)
+	}
+	sort.Strings(columns)
+
+	for _, column := range columns {
 		var t types.Type = table.Header.Columns[column]
-		t.Content = content
+		t.Content = row[column]
 
 		if err := t.Encoder(); err != nil {
 			return err
@@ -222,11 +249,15 @@ func (table *Table) Add(row map[string]interface{}) error {
 		}
 	}
 
+	table.mutex.Lock()
+
 	var n int
 	data = bff.Bytes()
 	if n, err = table.FileDescriptor.Write(data); err != nil || n != table.LineSize {
 		return DBError{"Error storing new record."}
 	}
+
+	table.mutex.Unlock()
 
 	return nil
 }
