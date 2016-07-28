@@ -14,12 +14,25 @@ func (err DBError) Error() string {
 	return fmt.Sprintf("DBError: %v", err.Message)
 }
 
+func trim(data []byte) []byte {
+	var trimmed int
+	for _, value := range data {
+		if value != 32 {
+			break
+		}
+		trimmed += 1
+	}
+	return data[trimmed:]
+}
+
 func String(data []byte) (interface{}, error) {
-	return string(data), nil
+	return string(trim(data)), nil
 }
 
 func Float(data []byte) (interface{}, error) {
-	u_int, err := strconv.ParseUint(string(data), 10, 64)
+	var encoded []byte = trim(data)
+
+	u_int, err := strconv.ParseUint(string(encoded), 10, 64)
 	if err != nil {
 		return 0.0, DBError{"Error on float decoding."}
 	}
@@ -30,7 +43,8 @@ func Int(data []byte) (interface{}, error) {
 	var res int
 	var err error
 
-	if res, err = strconv.Atoi(string(data)); err != nil {
+	var encoded []byte = trim(data)
+	if res, err = strconv.Atoi(string(encoded)); err != nil {
 		return 0, DBError{"Error on float decoding."}
 	}
 	return res, nil

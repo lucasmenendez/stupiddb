@@ -40,8 +40,7 @@ func String(size int, indexable bool) Type {
 
 func (data *Type) Encoder() error {
 	var err error
-
-	value := reflect.ValueOf(data.Content)
+	var value reflect.Value = reflect.ValueOf(data.Content)
 
 	switch data.Alias {
 		case "string":
@@ -61,16 +60,15 @@ func (data *Type) Encoder() error {
 
 func (data *Type) Decoder() error {
 	var err error
-
-	value := reflect.ValueOf(data.Content).Bytes()
+	var value []byte = []byte(reflect.ValueOf(data.Content).String())
 
 	switch data.Alias {
 		case "string":
 			data.Content, err = decoder.String(value)
 		case "float":
-			data.Content, err = decoder.Int(value)
-		case "int":
 			data.Content, err = decoder.Float(value)
+		case "int":
+			data.Content, err = decoder.Int(value)
 		case "bool":
 			data.Content, err = decoder.Bool(value)
 		default:

@@ -251,7 +251,7 @@ func (table *Table) Add(row map[string]interface{}) error {
 		for _, index := range table.Index {
 			if index.Column == column {
 				if index.Exist(content) {
-					return DBError{"Row with '"+column+"' equal to '"+content+"' already exists."}
+					return DBError{"Constrain violation on '"+column+"' column"}
 				} else {
 					if err := index.Append(content); err != nil {
 						return err
@@ -278,7 +278,7 @@ func (table *Table) Add(row map[string]interface{}) error {
 	return nil
 }
 
-func (table *Table) Get() ([]interface{}, error) {
+func (table *Table) Get() ([]map[string]types.Type, error) {
 	var err error
 
 	table.mutex.Lock()
@@ -298,18 +298,34 @@ func (table *Table) Get() ([]interface{}, error) {
 	table.mutex.Unlock()
 
 	//TODO: get columns sizes
+	var columns []string
+	for col := range table.Header.Columns {
+		columns = append(columns, col)
+	}
+	sort.Strings(columns)
 
 	var results []map[string]types.Type
-	var offset int64 = int64(table.Header.Size)
+	var row_offset int64 = int64(table.Header.Size)
 	var file_length int64 = int64(len(content) - table.Header.Size)
 
-	for offset <= file_length {
-		var endline int64 = offset + int64(table.LineSize)
-		var row string = content[offset:endline]
-		offset = endline
+	for row_offset <= file_length {
+		var row_end int64 = row_offset + int64(table.LineSize)
+		var row_content string = content[row_offset:row_end]
+		row_offset = row_end
 
-		//TODO: parse each row
+		var row map[string]types.Type = make(map[string]types.Type, len(columns))
+		var col_offset int = 0
+		for _, col := range columns {
+			var data types.Type = table.Header.Columns[col]
+			var col_end int = col_offset + data.Size
+
+			data.Content = row_content[col_offset:col_end]
+			data.Decoder()
+
+			row[col] = data
+			col_offset += data.Size
+		}
+		results = append(results, row)
 	}
-
-	return nil, err
+	return results, err
 }
