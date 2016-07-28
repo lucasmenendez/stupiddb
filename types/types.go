@@ -38,6 +38,10 @@ func String(size int, indexable bool) Type {
 	return Type{"string", indexable, size, nil}
 }
 
+func (data *Type) Empty() bool {
+	return data.Alias == "" && data.Content == nil
+}
+
 func (data *Type) Encoder() error {
 	var err error
 	var value reflect.Value = reflect.ValueOf(data.Content)

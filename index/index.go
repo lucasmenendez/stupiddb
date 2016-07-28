@@ -21,7 +21,7 @@ type Index struct {
 	Column string
 	Location string
 	Content []string
-	mutex *sync.Mutex
+	Mutex *sync.Mutex
 }
 
 func New(location, table, column string) error {
@@ -80,16 +80,16 @@ func Get(index_path string) ([]*Index, error) {
 			index_content = append(index_content, scanner.Text())
 		}
 
-		var mutex *sync.Mutex = &sync.Mutex{}
-		index = append(index, &Index{index_name, index_path, index_content, mutex})
+		var Mutex *sync.Mutex = &sync.Mutex{}
+		index = append(index, &Index{index_name, index_path, index_content, Mutex})
 	}
 
 	return index, nil
 }
 
 func (index *Index) Exist(needle string) bool {
-	index.mutex.Lock()
-	defer index.mutex.Unlock()
+	index.Mutex.Lock()
+	defer index.Mutex.Unlock()
 
 	for _, value := range index.Content {
 		if value == needle {
@@ -101,8 +101,8 @@ func (index *Index) Exist(needle string) bool {
 }
 
 func (index *Index) Find(needle string) (int, error) {
-	index.mutex.Lock()
-	defer index.mutex.Unlock()
+	index.Mutex.Lock()
+	defer index.Mutex.Unlock()
 
 	for line_number, value := range index.Content {
 		if value == needle {
@@ -117,8 +117,8 @@ func (index *Index) Append (content string) error {
 	var err error
 	var index_location = index.Location + index.Column
 
-	index.mutex.Lock()
-	defer index.mutex.Unlock()
+	index.Mutex.Lock()
+	defer index.Mutex.Unlock()
 
 	var stat os.FileInfo
 	if stat, err = os.Stat(index_location); err != nil {

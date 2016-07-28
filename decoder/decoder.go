@@ -30,6 +30,10 @@ func String(data []byte) (interface{}, error) {
 }
 
 func Float(data []byte) (interface{}, error) {
+	if len(data) > 20 {
+		return 0.0, DBError{"Bad float data provided."}
+	}
+
 	var encoded []byte = trim(data)
 
 	u_int, err := strconv.ParseUint(string(encoded), 10, 64)
@@ -40,6 +44,10 @@ func Float(data []byte) (interface{}, error) {
 }
 
 func Int(data []byte) (interface{}, error) {
+	if len(data) > 4 {
+		return 0, DBError{"Bad int data provided."}
+	}
+
 	var res int
 	var err error
 
@@ -51,8 +59,11 @@ func Int(data []byte) (interface{}, error) {
 }
 
 func Bool(data []byte) (interface{}, error) {
-	var res bool = false
+	if len(data) > 1 {
+		return false, DBError{"Bad bool data provided."}
+	}
 
+	var res bool = false
 	if data[0] == 1 {
 		res = true
 	}

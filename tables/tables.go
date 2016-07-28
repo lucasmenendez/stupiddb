@@ -297,7 +297,6 @@ func (table *Table) Get() ([]map[string]types.Type, error) {
 	var content string = scanner.Text();
 	table.mutex.Unlock()
 
-	//TODO: get columns sizes
 	var columns []string
 	for col := range table.Header.Columns {
 		columns = append(columns, col)
@@ -328,4 +327,85 @@ func (table *Table) Get() ([]map[string]types.Type, error) {
 		results = append(results, row)
 	}
 	return results, err
+}
+
+func (table *Table) GetOne(key string, value interface{}) (map[string]types.Type, error) {
+	var err error
+
+	var filter types.Type = table.Header.Columns[key]
+	if !filter.Indexable || filter.Empty() {
+		return nil, DBError{"Column not found or not indexable."}
+	}
+
+	var index *index.Index
+	for _, i := range table.Index {
+		if key == i.Column {
+			index = i
+			break
+		}
+	}
+
+	if index == nil {
+		return nil, DBError{"Index not found."}
+	}
+
+	filter.Content = value
+	filter.Encoder()
+	var needle string = string(filter.Content.([]byte))
+
+	index.Mutex.Lock()
+	var line_number int = -1
+	for line, id := range index.Content {
+		if id == needle {
+			line_number = line
+			break
+		}
+	}
+	index.Mutex.Unlock()
+
+	if line_number == -1 {
+		return nil, DBError{"Row not found."}
+	}
+
+	table.mutex.Lock()
+	if _, err = table.FileDescriptor.Seek(0, 0); err != nil {
+		return nil, DBError{"Error seeking table file descriptor."}
+	}
+
+	var scanner *bufio.Scanner = bufio.NewScanner(table.FileDescriptor)
+	if !scanner.Scan() {
+		return nil, DBError{"Bad formated table."}
+	}
+
+	if !scanner.Scan() {
+		return nil, DBError{"Bad formated table."}
+	}
+	var content string = scanner.Text();
+	table.mutex.Unlock()
+
+	var columns []string
+	for col := range table.Header.Columns {
+		columns = append(columns, col)
+	}
+	sort.Strings(columns)
+
+	var result map[string]types.Type = make(map[string]types.Type, len(columns))
+
+	var row_offset int = line_number * table.LineSize + table.Header.Size
+	var row_end int = row_offset + table.LineSize
+	var row_content string = content[row_offset:row_end]
+
+	var col_offset int = 0
+	for _, col := range columns {
+		var data types.Type = table.Header.Columns[col]
+		var col_end int = col_offset + data.Size
+
+		data.Content = row_content[col_offset:col_end]
+		data.Decoder()
+
+		result[col] = data
+		col_offset += data.Size
+	}
+
+	return result, nil
 }
