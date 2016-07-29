@@ -113,7 +113,7 @@ func (index *Index) Find(needle string) (int, error) {
 	return 0, DBError{"Key not found on index."}
 }
 
-func (index *Index) Append (content string) error {
+func (index *Index) Append(content string) error {
 	var err error
 	var index_location = index.Location + index.Column
 
@@ -126,7 +126,6 @@ func (index *Index) Append (content string) error {
 	}
 
 	var old_size int64 = stat.Size()
-	fmt.Println(old_size)
 
 	var fd *os.File
 	if fd, err = os.OpenFile(index_location, os.O_WRONLY | os.O_APPEND, os.ModeAppend); err != nil {
@@ -145,6 +144,48 @@ func (index *Index) Append (content string) error {
 			}
 		} else {
 			index.Content = append(index.Content, content)
+		}
+
+		fd.Close()
+	}
+
+	return nil
+}
+
+func (index *Index) Delete(content string) error {
+	var err error
+	var index_location = index.Location + index.Column
+
+	index.Mutex.Lock()
+	defer index.Mutex.Unlock()
+
+	var index_length int = len(index.Content)
+	if index.Content[index_length - 1] != content {
+		var flag int = index_length
+		for i := 0; i < index_length - 1; i++ {
+			if index.Content[i] == content {
+				flag = i
+			}
+
+			if i >= flag {
+				index.Content[i] = index.Content[i + 1]
+			}
+		}
+	}
+	index.Content = index.Content[:index_length - 1]
+
+	var fd *os.File
+	if fd, err = os.OpenFile(index_location, os.O_WRONLY | os.O_APPEND, os.ModeAppend); err != nil {
+		return DBError{"Error indexing row."}
+	} else {
+		var content string
+		for i := range index.Content {
+			content = fmt.Sprintf("%s%s\n", content, index.Content[i])
+		}
+
+		var l int
+		if l, err = fd.WriteString(content); err != nil || l != len(content) {
+			return DBError{"Indexed error."}
 		}
 
 		fd.Close()

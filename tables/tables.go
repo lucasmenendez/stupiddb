@@ -66,6 +66,65 @@ func encodeHeader(fields map[string]types.Type) ([]byte, error) {
 	return header.Bytes(), nil
 }
 
+func (table *Table) getLine(key string, value interface{}) (int, error) {
+	var filter types.Type = table.Header.Columns[key]
+	if !filter.Indexable || filter.Empty() {
+		return 0, DBError{"Column not found or not indexable."}
+	}
+
+	var index *index.Index
+	for _, i := range table.Index {
+		if key == i.Column {
+			index = i
+			break
+		}
+	}
+
+	if index == nil {
+		return 0, DBError{"Index not found."}
+	}
+
+	filter.Content = value
+	filter.Encoder()
+	var needle string = string(filter.Content.([]byte))
+
+	index.Mutex.Lock()
+	var line_number int = -1
+	for line, id := range index.Content {
+		if id == needle {
+			line_number = line
+			break
+		}
+	}
+	index.Mutex.Unlock()
+
+	if line_number == -1 {
+		return 0, DBError{"Row not found."}
+	}
+
+	return line_number, nil
+}
+
+func (table *Table) getContent() (string, error) {
+	var err error
+	var content string
+
+	if _, err = table.FileDescriptor.Seek(0, 0); err != nil {
+		return content, DBError{"Error seeking table file descriptor."}
+	}
+
+	var scanner *bufio.Scanner = bufio.NewScanner(table.FileDescriptor)
+	if !scanner.Scan() {
+		return content, DBError{"Bad formated table."}
+	}
+
+	if !scanner.Scan() {
+		return content, DBError{"Bad formated table."}
+	}
+	content = scanner.Text();
+
+	return content, nil
+}
 
 /*
  *	TODO:
@@ -278,23 +337,90 @@ func (table *Table) Add(row map[string]interface{}) error {
 	return nil
 }
 
+//func (table *Table) Edit(key string, old_value, new_value interface{}) error {}
+
+func (table *Table) Delete(key string, value interface{}) error {
+	var err error
+
+	var line_num int
+	if line_num, err = table.getLine(key, value); err != nil {
+		return err
+	}
+
+	table.mutex.Lock()
+	var content string
+	if content, err = table.getContent(); err != nil {
+		return err
+	}
+
+	var offset int = line_num * table.LineSize + table.Header.Size + table.LineSize
+	var after_line string = content[offset:]
+
+	var stat os.FileInfo
+	var path string = fmt.Sprintf("%s%s/data", table.Location, table.Name)
+	if stat, err = os.Stat(path); err != nil {
+		return DBError{"Error reading table."}
+	}
+
+	var truncate_limit int64 = stat.Size() - int64(len(after_line) + table.LineSize)
+
+	if err = table.FileDescriptor.Truncate(truncate_limit); err != nil {
+		return DBError{"Error truncate table file descriptor."}
+	}
+
+	if _, err = table.FileDescriptor.Seek(0, 2); err != nil {
+		return DBError{"Error seeking table descriptor.."}
+	}
+
+	var l int
+	if l, err = table.FileDescriptor.WriteString(after_line); err != nil {
+		return DBError{"Error deleting row."}
+	} else if l != len(after_line) {
+		if err = table.FileDescriptor.Truncate(0); err != nil {
+			return DBError{"Error deleting row. Rollback truncate failed."}
+		}
+
+		if _, err = table.FileDescriptor.Seek(0, 0); err != nil {
+			return DBError{"Error deleting row. Rollback seek failed."}
+		}
+
+		var n int
+		if n, err = table.FileDescriptor.WriteString(content); err != nil || n != len(content) {
+			return DBError{"Error deleting row. Rollback write failed."}
+		}
+	}
+
+	var filter types.Type = table.Header.Columns[key]
+
+	var index *index.Index
+	for _, i := range table.Index {
+		if key == i.Column {
+			index = i
+			break
+		}
+	}
+
+	filter.Content = value
+	filter.Encoder()
+
+	var needle string = string(filter.Content.([]byte))
+	if err = index.Delete(needle); err != nil {
+		return err
+	}
+
+	table.mutex.Unlock()
+
+	return nil
+}
+
 func (table *Table) Get() ([]map[string]types.Type, error) {
 	var err error
 
 	table.mutex.Lock()
-	if _, err = table.FileDescriptor.Seek(0, 0); err != nil {
-		return nil, DBError{"Error seeking table file descriptor."}
+	var content string
+	if content, err = table.getContent(); err != nil {
+		return nil, err
 	}
-
-	var scanner *bufio.Scanner = bufio.NewScanner(table.FileDescriptor)
-	if !scanner.Scan() {
-		return nil, DBError{"Bad formated table."}
-	}
-
-	if !scanner.Scan() {
-		return nil, DBError{"Bad formated table."}
-	}
-	var content string = scanner.Text();
 	table.mutex.Unlock()
 
 	var columns []string
@@ -305,7 +431,7 @@ func (table *Table) Get() ([]map[string]types.Type, error) {
 
 	var results []map[string]types.Type
 	var row_offset int64 = int64(table.Header.Size)
-	var file_length int64 = int64(len(content) - table.Header.Size)
+	var file_length int64 = int64(len(content) - 1)
 
 	for row_offset <= file_length {
 		var row_end int64 = row_offset + int64(table.LineSize)
@@ -332,55 +458,16 @@ func (table *Table) Get() ([]map[string]types.Type, error) {
 func (table *Table) GetOne(key string, value interface{}) (map[string]types.Type, error) {
 	var err error
 
-	var filter types.Type = table.Header.Columns[key]
-	if !filter.Indexable || filter.Empty() {
-		return nil, DBError{"Column not found or not indexable."}
-	}
-
-	var index *index.Index
-	for _, i := range table.Index {
-		if key == i.Column {
-			index = i
-			break
-		}
-	}
-
-	if index == nil {
-		return nil, DBError{"Index not found."}
-	}
-
-	filter.Content = value
-	filter.Encoder()
-	var needle string = string(filter.Content.([]byte))
-
-	index.Mutex.Lock()
-	var line_number int = -1
-	for line, id := range index.Content {
-		if id == needle {
-			line_number = line
-			break
-		}
-	}
-	index.Mutex.Unlock()
-
-	if line_number == -1 {
-		return nil, DBError{"Row not found."}
+	var line_number int
+	if line_number, err = table.getLine(key, value); err != nil {
+		return nil, err
 	}
 
 	table.mutex.Lock()
-	if _, err = table.FileDescriptor.Seek(0, 0); err != nil {
-		return nil, DBError{"Error seeking table file descriptor."}
+	var content string
+	if content, err = table.getContent(); err != nil {
+		return nil, err
 	}
-
-	var scanner *bufio.Scanner = bufio.NewScanner(table.FileDescriptor)
-	if !scanner.Scan() {
-		return nil, DBError{"Bad formated table."}
-	}
-
-	if !scanner.Scan() {
-		return nil, DBError{"Bad formated table."}
-	}
-	var content string = scanner.Text();
 	table.mutex.Unlock()
 
 	var columns []string
