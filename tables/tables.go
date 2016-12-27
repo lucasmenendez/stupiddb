@@ -63,7 +63,20 @@ func encodeHeader(fields map[string]types.Type) ([]byte, error) {
 	}
 
 	fmt.Fprintf(header, "%d;%d\n%s", columns.Len(), line_length, columns.Bytes())
-	return header.Bytes(), nil
+
+	var header_size int = header.Len()
+	var new_header *bytes.Buffer = bytes.NewBuffer([]byte{})
+	fmt.Fprintf(new_header, "%d;%d\n%s", header_size, line_length, columns.Bytes())
+
+	var new_header_size int = new_header.Len()
+	for header_size != new_header_size {
+		header_size = new_header_size
+		fmt.Fprintf(new_header, "%d;%d\n%s", header_size, line_length, columns.Bytes())
+
+		new_header_size = new_header.Len()
+	}
+
+	return new_header.Bytes(), nil
 }
 
 func (table *Table) getLine(key string, value interface{}) (int, error) {
@@ -196,7 +209,7 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	var fd *os.File
 
 	var path string = fmt.Sprintf("%s%s/data", location, name)
-	if fd, err = os.OpenFile(path, os.O_RDWR|os.O_APPEND, os.ModePerm); err != nil {
+	if fd, err = os.OpenFile(path, os.O_RDWR, os.ModePerm); err != nil {
 		return nil, DBError{"Table not found."}
 	}
 
@@ -219,6 +232,8 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	if !scanner.Scan() {
 		return nil, DBError{"Bad formated table."}
 	}
+
+	fmt.Println(header_size)
 
 	var columns map[string]types.Type = make(map[string]types.Type)
 	var header_line string = scanner.Text()
@@ -246,7 +261,7 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 	var header *Header = &Header{header_size, columns}
 	var mutex *sync.Mutex = &sync.Mutex{}
 
-	if _, err = fd.Seek(0, 0); err != nil {
+	if _, err = fd.Seek(0, 2); err != nil {
 		return nil, DBError{"Error seeking table file descriptor."}
 	}
 
@@ -297,6 +312,7 @@ func (table *Table) Add(row map[string]interface{}) error {
 		} else { //Ordered writting
 			value := t.Content.([]byte)
 			if _, err = bff.Write(value); err != nil {
+				fmt.Println(err)
 				return DBError{"Error storing new record."}
 			}
 		}
@@ -337,7 +353,118 @@ func (table *Table) Add(row map[string]interface{}) error {
 	return nil
 }
 
-//func (table *Table) Edit(key string, old_value, new_value interface{}) error {}
+func (table *Table) Edit(row map[string]interface{}) error {
+	var err error
+
+	var key string
+	var value interface{}
+
+	OUTER:
+	for _, index := range table.Index {
+		for key, value = range row {
+			if index.Column == key {
+				break OUTER
+			}
+		}
+	}
+
+	if len(key) < 1 {
+		return DBError{"No primary key provided."}
+	}
+
+	var line_number int
+	if line_number, err = table.getLine(key, value); err != nil {
+		return err
+	}
+
+	table.mutex.Lock()
+	var content string
+	if content, err = table.getContent(); err != nil {
+		return err
+	}
+
+	var columns []string
+	for col := range table.Header.Columns {
+		columns = append(columns, col)
+	}
+	sort.Strings(columns)
+
+	var current map[string]types.Type = make(map[string]types.Type, len(columns))
+
+	var row_offset int = line_number * table.LineSize + table.Header.Size
+	var row_end int = row_offset + table.LineSize
+	var row_content string = content[row_offset:row_end]
+
+	var col_offset int = 0
+	for _, col := range columns {
+		var data types.Type = table.Header.Columns[col]
+		var col_end int = col_offset + data.Size
+
+		data.Content = row_content[col_offset:col_end]
+		data.Decoder()
+
+		current[col] = data
+		col_offset += data.Size
+	}
+
+	var data []byte
+	bff := bytes.NewBuffer(data)
+
+	for _, col := range columns {
+		var new_col types.Type = current[col]
+		for key, value := range row {
+			if key != "id" && col == key {
+				new_col.Content = value
+				break
+			}
+		}
+
+		if err := new_col.Encoder(); err != nil {
+			return err
+		} else { //Ordered writting
+			value := new_col.Content.([]byte)
+			if _, err = bff.Write(value); err != nil {
+				return DBError{"Error storing new record."}
+			}
+		}
+	}
+
+	fmt.Println(row_content)
+	fmt.Println(len(row_content))
+	fmt.Println(bff.String())
+	fmt.Println(len(bff.String()))
+
+	var offset int64 = int64(row_offset)
+	if _, err = table.FileDescriptor.Seek(offset, 0); err != nil {
+		return DBError{"Error deleting row. Rollback seek failed."}
+	}
+
+	data = bff.Bytes()
+	var l int
+	if l, err = table.FileDescriptor.Write(data); err != nil {
+		return err
+	} else if l != len(data) {
+		if err = table.FileDescriptor.Truncate(0); err != nil {
+			return DBError{"Error deleting row. Rollback truncate failed."}
+		}
+
+		if _, err = table.FileDescriptor.Seek(0, 0); err != nil {
+			return DBError{"Error deleting row. Rollback seek failed."}
+		}
+
+		var n int
+		if n, err = table.FileDescriptor.WriteString(content); err != nil || n != len(content) {
+			return DBError{"Error deleting row. Rollback write failed."}
+		}
+	}
+
+	if err = table.FileDescriptor.Sync(); err != nil {
+		return DBError{"Error commiting new record."}
+	}
+
+	table.mutex.Unlock()
+	return nil
+}
 
 func (table *Table) Delete(key string, value interface{}) error {
 	var err error
