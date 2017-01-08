@@ -5,21 +5,15 @@ import (
 	"math"
 	"bytes"
 	"strconv"
+
+	"stupiddb/dberror"
 )
 
-type DBError struct {
-	Message string
-}
-
-func (err DBError) Error() string {
-	return fmt.Sprintf("DBError: %v", err.Message)
-}
-
 func String(data string, size int) (interface{}, error) {
-	var length = len(data)
-	var offset int = (size - length)
+	var length		= len(data)
+	var offset int	= (size - length)
 	if offset < 0 {
-		return []byte{}, DBError{"Data exceed column size limit."}
+		return []byte{}, dberror.DBError{"Data exceed column size limit."}
 	}
 
 	res := make([]byte, offset)
@@ -29,20 +23,19 @@ func String(data string, size int) (interface{}, error) {
 
 	bff := bytes.NewBuffer(res)
 	if writted, err := bff.Write([]byte(data)); err != nil || writted != length {
-		return []byte{}, DBError{"Error on string encoding."}
+		return []byte{}, dberror.DBError{"Error on string encoding."}
 	}
 
 	return bff.Bytes(), nil
 }
 
 func Float(data float64) (interface{}, error) {
-	content := []byte(fmt.Sprint(math.Float64bits(data)))
-
-	var length int = len(content)
-	var offset int = 20 - length
+	var content []byte	= []byte(fmt.Sprint(math.Float64bits(data)))
+	var length int		= len(content)
+	var offset int		= 20 - length
 
 	if offset < 0 {
-		return []byte{}, DBError{"Data exceed float size."}
+		return []byte{}, dberror.DBError{"Data exceed float size."}
 	}
 
 	res := make([]byte, offset)
@@ -52,20 +45,19 @@ func Float(data float64) (interface{}, error) {
 
 	bff := bytes.NewBuffer(res)
 	if writted, err := bff.Write(content); err != nil || writted != length {
-		return []byte{}, DBError{"Error on float encoding"}
+		return []byte{}, dberror.DBError{"Error on float encoding"}
 	}
 
 	return bff.Bytes(), nil
 }
 
 func Int(data int64) (interface{}, error) {
-	content := []byte(strconv.Itoa(int(data)))
-
-	var length int = len(content)
-	var offset int = 4 - length
+	var content []byte	= []byte(strconv.Itoa(int(data)))
+	var length int		= len(content)
+	var offset int		= 4 - length
 
 	if offset < 0 {
-		return []byte{}, DBError{"Data exceed int size."}
+		return []byte{}, dberror.DBError{"Data exceed int size."}
 	} else if offset == 0 {
 		return content, nil
 	}
@@ -77,7 +69,7 @@ func Int(data int64) (interface{}, error) {
 
 	bff := bytes.NewBuffer(res)
 	if writted, err := bff.Write(content); err != nil || writted != length {
-		return []byte{}, DBError{"Error on int encoding."}
+		return []byte{}, dberror.DBError{"Error on int encoding."}
 	}
 
 	return bff.Bytes(), nil

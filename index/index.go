@@ -6,16 +6,9 @@ import (
 	"sync"
 	"bufio"
 	"io/ioutil"
+
+	"stupiddb/dberror"
 )
-
-type DBError struct {
-	Message string
-}
-
-func (err DBError) Error() string {
-	return fmt.Sprintf("DBError: %v", err.Message)
-}
-
 
 type Index struct {
 	Column string
@@ -29,13 +22,13 @@ func New(location, table, column string) error {
 	var index_path string = location + table + "/index"
 	if _, err = os.Stat(index_path); err != nil {
 		if err = os.Mkdir(index_path, os.ModePerm); err != nil {
-			return DBError{"Error creating table index container."}
+			return dberror.DBError{"Error creating table index container."}
 		}
 	}
 
 	var fd *os.File
 	if fd, err = os.Create(index_path + "/" + column); err != nil {
-		return DBError{"Error creating column index."}
+		return dberror.DBError{"Error creating column index."}
 	}
 	fd.Close()
 
@@ -45,7 +38,7 @@ func New(location, table, column string) error {
 func (index *Index) Remove() error {
 	var index_location = index.Location + index.Column
 	if err := os.RemoveAll(index_location); err != nil {
-		return DBError{"Error deleting index."}
+		return dberror.DBError{"Error deleting index."}
 	}
 
 	return nil
@@ -55,13 +48,13 @@ func Get(index_path string) ([]*Index, error) {
 	var index []*Index
 	var err error
 
-	if _, err = os.Stat(index_path); err != nil {//Should not be here ever
-		return index, DBError{"Bad formated table: no index. Create it againg."}
+	if _, err = os.Stat(index_path); err != nil {//Should not be here nnever
+		return index, dberror.DBError{"Bad formated table: no index. Create it againg."}
 	}
 
 	var index_files []os.FileInfo
 	if index_files, err = ioutil.ReadDir(index_path); err != nil {
-		return index, DBError{"Error getting table index."}
+		return index, dberror.DBError{"Error getting table index."}
 	}
 
 	for _, file := range index_files {
@@ -71,7 +64,7 @@ func Get(index_path string) ([]*Index, error) {
 		var err error
 
 		if index_fd, err = os.Open(index_path + index_name); err != nil {
-			return index, DBError{"Error opening index."}
+			return index, dberror.DBError{"Error opening index."}
 		}
 		defer index_fd.Close()
 
@@ -110,7 +103,7 @@ func (index *Index) Find(needle string) (int, error) {
 		}
 	}
 
-	return 0, DBError{"Key not found on index."}
+	return 0, dberror.DBError{"Key not found on index."}
 }
 
 func (index *Index) Append(content string) error {
@@ -122,25 +115,25 @@ func (index *Index) Append(content string) error {
 
 	var stat os.FileInfo
 	if stat, err = os.Stat(index_location); err != nil {
-		return DBError{"Error reading index."}
+		return dberror.DBError{"Error reading index."}
 	}
 
 	var old_size int64 = stat.Size()
 
 	var fd *os.File
 	if fd, err = os.OpenFile(index_location, os.O_WRONLY | os.O_APPEND, os.ModeAppend); err != nil {
-		return DBError{"Error indexing row."}
+		return dberror.DBError{"Error indexing row."}
 	} else {
 		var l int
 		var record = fmt.Sprintf("%s\n", content)
 
 		if l, err = fd.Write([]byte(record)); err != nil {
-			return DBError{"Indexed error."}
+			return dberror.DBError{"Indexed error."}
 		} else if l != len(record) {
 			if err = fd.Truncate(old_size); err != nil {
-				return DBError{"Indexed error. Rollback failed."}
+				return dberror.DBError{"Indexed error. Rollback failed."}
 			} else {
-				return DBError{"Indexed error. Rollback done."}
+				return dberror.DBError{"Indexed error. Rollback done."}
 			}
 		} else {
 			index.Content = append(index.Content, content)
@@ -176,7 +169,7 @@ func (index *Index) Delete(content string) error {
 
 	var fd *os.File
 	if fd, err = os.OpenFile(index_location, os.O_WRONLY | os.O_APPEND, os.ModeAppend); err != nil {
-		return DBError{"Error indexing row."}
+		return dberror.DBError{"Error indexing row."}
 	} else {
 		var content string
 		for i := range index.Content {
@@ -185,7 +178,7 @@ func (index *Index) Delete(content string) error {
 
 		var l int
 		if l, err = fd.WriteString(content); err != nil || l != len(content) {
-			return DBError{"Indexed error."}
+			return dberror.DBError{"Indexed error."}
 		}
 
 		fd.Close()
