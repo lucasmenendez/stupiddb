@@ -9,6 +9,8 @@ import (
 	"stupiddb/dberror"
 )
 
+//Build String with format defined by size and according offset and check data provided length.
+//If something fails returns a 'DBError' with info message.
 func String(data string, size int) (interface{}, error) {
 	var length		= len(data)
 	var offset int	= (size - length)
@@ -29,6 +31,8 @@ func String(data string, size int) (interface{}, error) {
 	return bff.Bytes(), nil
 }
 
+//Build Float with format defined by type check correct data provided.
+//If something fails returns a 'DBError' with info message.
 func Float(data float64) (interface{}, error) {
 	var content []byte	= []byte(fmt.Sprint(math.Float64bits(data)))
 	var length int		= len(content)
@@ -51,6 +55,8 @@ func Float(data float64) (interface{}, error) {
 	return bff.Bytes(), nil
 }
 
+//Build Integer with format defined by type check correct data provided.
+//If something fails returns a 'DBError' with info message.
 func Int(data int64) (interface{}, error) {
 	var content []byte	= []byte(strconv.Itoa(int(data)))
 	var length int		= len(content)
@@ -75,6 +81,8 @@ func Int(data int64) (interface{}, error) {
 	return bff.Bytes(), nil
 }
 
+//Serialize Boolean.
+//If something fails returns a 'DBError' with info message.
 func Bool(data bool) (interface{}, error) {
 	var result []byte
 

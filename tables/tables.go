@@ -33,7 +33,7 @@ type Header struct {
 }
 
 //Generate part of table definition by formated concatenation of
-//name, type and lengt of each column and returns []byte with.
+//name, type and length of each column and returns []byte with.
 func encodeHeader(fields map[string]types.Type) ([]byte, error) {
 	var line_length int
 	var header *bytes.Buffer	= bytes.NewBuffer([]byte{})
@@ -107,7 +107,7 @@ func (table *Table) getLine(key string, value interface{}) (int, error) {
 
 //Seek table file descriptor to initial position and read all table content
 //to search into them. This is horrible. I'm working on.
-//If something fails returns an error with info message.
+//If something fails returns a 'DBError' with info message.
 func (table *Table) getContent() (string, error) {
 	var err error
 	var content string
@@ -208,7 +208,7 @@ func (table *Table) Remove() error {
 
 //Prepare selected database to use it. Create file descriptors and get
 //database info and structure. Instance index and header references and return
-//Table struct. If something was wrong returns dberror.DBError.
+//'Table' struct. If something was wrong returns 'DBError'.
 func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, error) {
 	var err error
 	var fd_data *os.File
@@ -276,7 +276,7 @@ func Use(name, location string, sizes_rgx, header_rgx *regexp.Regexp) (*Table, e
 }
 
 //Close database instance. Commit database changes and close file descriptor.
-//If something was wrong returns dberror.DBError, else nil.
+//If something was wrong returns 'DBError', else nil.
 func (table *Table) Close() error {
 	table.mutex.Lock()
 	defer table.mutex.Unlock()
@@ -297,7 +297,7 @@ func (table *Table) Close() error {
 //Create new record on table. First format new record and check if exists 
 //indexable columns or key already exists on its index, then write new
 //record on database row content and update index. If something was wrong 
-//returns dberror.DBError, else nil.
+//returns 'DBError', else nil.
 func (table *Table) Add(row map[string]interface{}) error {
 	var err error
 
@@ -372,7 +372,7 @@ func (table *Table) Add(row map[string]interface{}) error {
 //Update row by record provided. One of columns must be indexed column at 
 //least, the rest can be updated. Firs check if one of columns provided are
 //indexable, then get record offset and limit, update it and store again in
-//same position. If something was wrong returns dberror.DBError, else nil.
+//same position. If something was wrong returns 'DBError', else nil.
 func (table *Table) Edit(row map[string]interface{}) error {
 	var err error
 
@@ -485,7 +485,7 @@ func (table *Table) Edit(row map[string]interface{}) error {
 
 //Remove record from table by key value tuple. First get record line number
 //on index, then join previous and next records of query result and store 
-//on table. If something was worng return a DBError with info message,
+//on table. If something was worng return a 'DBError' with info message,
 //else nil.
 func (table *Table) Delete(key string, value interface{}) error {
 	var err error
@@ -562,7 +562,7 @@ func (table *Table) Delete(key string, value interface{}) error {
 
 //Get all table records formated. First obteins row table content and
 //format each reacord by table definition structure. If something was wrong
-//return a DBError with info message, else list of Types.
+//return a 'DBError' with info message, else list of 'Types'.
 func (table *Table) Get() ([]map[string]types.Type, error) {
 	var err error
 
@@ -609,7 +609,7 @@ func (table *Table) Get() ([]map[string]types.Type, error) {
 //Search and return single record from current table by key value tuple.
 //First obtain record line number, then calculate offset and limit to search
 //on raw database content and format record by table definition. If something 
-//was wrong return a DBError with info message, else Type.
+//was wrong return a 'DBError' with info message, else 'Type'.
 func (table *Table) GetOne(key string, value interface{}) (map[string]types.Type, error) {
 	var err error
 

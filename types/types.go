@@ -43,7 +43,7 @@ func (data *Type) Empty() bool {
 }
 
 //Fill Type content with encoded typed representation data content according
-//to associate data structure. If something was wrong returns a DBError,
+//to associate data structure. If something was wrong returns a 'DBError',
 //else nil.
 func (data *Type) Encoder() error {
 	var err error
@@ -66,7 +66,7 @@ func (data *Type) Encoder() error {
 }
 
 //Fill Type content typed according with associated data structure. If
-//something was wrong returns a DBError, else nil.
+//something was wrong returns a 'DBError', else nil.
 func (data *Type) Decoder() error {
 	var err error
 	var value []byte = []byte(reflect.ValueOf(data.Content).String())
