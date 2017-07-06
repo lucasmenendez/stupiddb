@@ -5,10 +5,10 @@ import (
 	"os"
 	"regexp"
 
-	"stupiddb/globals"
-	"stupiddb/dberror"
-	"stupiddb/tables"
-	"stupiddb/types"
+	"github.com/lucasmenendez/stupiddb/globals"
+	"github.com/lucasmenendez/stupiddb/dberror"
+	"github.com/lucasmenendez/stupiddb/tables"
+	"github.com/lucasmenendez/stupiddb/types"
 )
 
 //Represents database struct and contains its name, location, table reference

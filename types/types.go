@@ -3,9 +3,9 @@ package types
 import (
 	"reflect"
 
-	"stupiddb/dberror"
-	"stupiddb/encoder"
-	"stupiddb/decoder"
+	"github.com/lucasmenendez/stupiddb/dberror"
+	"github.com/lucasmenendez/stupiddb/encoder"
+	"github.com/lucasmenendez/stupiddb/decoder"
 )
 
 //Type contains column attributes that defines data type, length and provided

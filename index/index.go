@@ -7,7 +7,7 @@ import (
 	"bufio"
 	"io/ioutil"
 
-	"stupiddb/dberror"
+	"github.com/lucasmenendez/stupiddb/dberror"
 )
 
 //Define index struct atributtes that contains column name, location path,

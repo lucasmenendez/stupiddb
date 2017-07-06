@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"strconv"
 
-	"stupiddb/dberror"
+	"github.com/lucasmenendez/stupiddb/dberror"
 )
 
 //Build String with format defined by size and according offset and check data provided length.

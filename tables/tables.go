@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"stupiddb/dberror"
-	"stupiddb/types"
-	"stupiddb/index"
+	"github.com/lucasmenendez/stupiddb/dberror"
+	"github.com/lucasmenendez/stupiddb/types"
+	"github.com/lucasmenendez/stupiddb/index"
 )
 
 //Table contains table attributes and reference auxiliar structs.

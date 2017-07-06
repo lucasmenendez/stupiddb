@@ -4,7 +4,7 @@ import (
 	"math"
 	"strconv"
 
-	"stupiddb/dberror"
+	"github.com/lucasmenendez/stupiddb/dberror"
 )
 
 //Delete offset spaces of []bytes provided to return clean result.
